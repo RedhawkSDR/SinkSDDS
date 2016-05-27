@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties PUBLIC "-//JTRS//DTD SCA V2.2.2 PRF//EN" "properties.dtd">
+<properties>
+  <struct id="network_settings" mode="readwrite">
+    <description>Setting for the network connection.</description>
+    <simple id="network_settings::interface" mode="readwrite" name="interface" type="string">
+      <description>Network interface used to send UDP/multicast, e.g. eth0, eth1, etc.</description>
+      <value>eth0</value>
+      <action type="external"/>
+    </simple>
+    <simple id="network_settings::ip_address" mode="readwrite" name="ip_address" type="string">
+      <description>UDP/multicast address or group ID to publish data to.</description>
+      <value>127.0.0.1</value>
+      <action type="external"/>
+    </simple>
+    <simple id="network_settings::port" mode="readwrite" name="port" type="long">
+      <description>UDP/multicast port used to publish data.</description>
+      <value>29495</value>
+      <action type="external"/>
+    </simple>
+    <simple id="network_settings::vlan" mode="readwrite" name="vlan" type="ushort">
+      <description>Virtual Lan address to use. Default to 0</description>
+      <value>0</value>
+      <action type="external"/>
+    </simple>
+    <configurationkind kindtype="property"/>
+  </struct>
+  <struct id="sdds_settings" mode="readwrite">
+    <description>SDDS Packet Settings</description>
+    <simple id="sdds_settings::standard_format" mode="readwrite" name="standard_format" type="short">
+      <description>&quot;sf&quot; bit for the SDDS header.</description>
+      <value>1</value>
+      <action type="external"/>
+    </simple>
+    <simple id="sdds_settings::original_format" mode="readwrite" name="original_format" type="short">
+      <description>&quot;of&quot; bit for the SDDS header.</description>
+      <value>0</value>
+      <action type="external"/>
+    </simple>
+    <simple id="sdds_settings::spectral_sense" mode="readwrite" name="spectral_sense" type="short">
+      <description>&quot;ss&quot; bit for the SDDS header.</description>
+      <value>0</value>
+      <action type="external"/>
+    </simple>
+    <simple id="sdds_settings::complexity" mode="readwrite" name="complexity" type="short">
+      <description>Complexity of the data (0 for scalar, 1 for complex); this is overridden by SRI if available.</description>
+      <value>0</value>
+      <action type="external"/>
+    </simple>
+    <simple id="sdds_settings::frequency" mode="readwrite" name="frequency" type="double">
+      <description>Frequency of the data; this is overridden by SRI if available.</description>
+      <value>154000000</value>
+      <units>Hz</units>
+      <action type="external"/>
+    </simple>
+    <simple id="sdds_settings::frequency_change_rate" mode="readwrite" name="frequency_change_rate" type="double">
+      <description>df/dt for the SDDS header; this is overridden by SRI if available.</description>
+      <value>0</value>
+      <action type="external"/>
+    </simple>
+    <simple id="sdds_settings::time_tag_valid" mode="readwrite" name="time_tag_valid" type="boolean">
+      <description>Flag for the timeTagValid portion of the SDDSStreamDefinition.</description>
+      <value>true</value>
+      <action type="external"/>
+    </simple>
+    <simple id="sdds_settings::time_tag_estimation" mode="readwrite" name="time_tag_estimation" type="boolean">
+      <description>When set, this will cause every SDDS packet that is sent out to have a valid time tag.</description>
+      <value>true</value>
+      <action type="external"/>
+    </simple>
+    <simple id="sdds_settings::user_id" mode="readwrite" name="user_id" type="string">
+      <description>Used as a parameter to the attach call.</description>
+      <value>anonymous</value>
+      <action type="external"/>
+    </simple>
+    <configurationkind kindtype="property"/>
+  </struct>
+  <struct id="advanced_configuration" mode="readwrite">
+    <description>advanced configuration options</description>
+    <simple id="advanced_configuration::buffer_size" mode="readwrite" name="buffer_size" type="long">
+      <description>Number of packets to put in the sddsBank at start-up.</description>
+      <value>200000</value>
+      <action type="external"/>
+    </simple>
+    <simple id="advanced_configuration::time_out_in_sec" mode="readwrite" name="time_out_in_sec" type="short">
+      <description>Maximum number of seconds to wait without receiving a CORBA packet to consider there was a break in transmission and to reset the SoS bit.</description>
+      <value>2</value>
+      <units>seconds</units>
+      <action type="external"/>
+    </simple>
+    <simple id="advanced_configuration::number_of_packets_in_burst" mode="readwrite" name="number_of_packets_in_burst" type="long">
+      <description>Number of packets to be sent before the throttle time is executed</description>
+      <value>100</value>
+      <action type="external"/>
+    </simple>
+    <simple id="advanced_configuration::throttle_time_between_packet_bursts" mode="readwrite" name="throttle_time_between_packet_bursts" type="long">
+      <description>Due to the pushPacket being larger then the VITA49 packet payload size packets may appear in bursts. This sets the number of microseconds between VITA49 transmitted packets. Default is 0. </description>
+      <value>2</value>
+      <units>seconds</units>
+      <action type="external"/>
+    </simple>
+    <simple id="advanced_configuration::endian_representation" mode="readwrite" name="endian_representation" type="long">
+      <description>Will the packet's payload be sent in BIG_ENDIAN representation or LITTLE_ENDIAN representation. Default is NATIVE</description>
+      <value>0</value>
+      <enumerations>
+        <enumeration label="NATIVE" value="0"/>
+        <enumeration label="LITTLE_ENDIAN" value="1"/>
+        <enumeration label="BIG_ENDIAN" value="2"/>
+      </enumerations>
+      <action type="external"/>
+    </simple>
+    <simple id="advanced_configuration::use_bulkio_sri" mode="readwrite" name="use_bulkio_sri" type="boolean">
+      <description>If set to true the follow on device will ignore the sample rate, stream id and mode being set in the context packet and use the values sent in the SRI from the SINK.</description>
+      <value>False</value>
+      <action type="external"/>
+    </simple>
+    <configurationkind kindtype="property"/>
+  </struct>
+</properties>
