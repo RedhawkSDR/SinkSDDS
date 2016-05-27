@@ -12,10 +12,17 @@
 PREPARE_LOGGING(SinkSDDS_i)
 
 SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
-    SinkSDDS_base(uuid, label)
+    SinkSDDS_base(uuid, label),
+	m_processor(this)
 {
-	dataFloatIn->addStreamListener(this, &SinkSDDS_i::streamAdded);
-	dataFloatIn->removeStreamListener(this, &SinkSDDS_i::streamRemoved);
+	dataFloatIn->addStreamListener(this, &SinkSDDS_i::floatStreamAdded);
+	dataFloatIn->removeStreamListener(this, &SinkSDDS_i::floatStreamRemoved);
+
+	dataShortIn->addStreamListener(this, &SinkSDDS_i::shortStreamAdded);
+	dataShortIn->removeStreamListener(this, &SinkSDDS_i::shortStreamRemoved);
+
+	dataOctetIn->addStreamListener(this, &SinkSDDS_i::octetStreamAdded);
+	dataOctetIn->removeStreamListener(this, &SinkSDDS_i::octetStreamRemoved);
 }
 
 SinkSDDS_i::~SinkSDDS_i(){}
@@ -39,21 +46,15 @@ void SinkSDDS_i::stop () throw (CF::Resource::StopError, CORBA::SystemException)
 	SinkSDDS_base::stop(); // Opens the port up so that the stream object will return and free up the read lock.
 	m_processor.join(); // Joins the processing thread
 }
-void SinkSDDS_i::streamAdded(bulkio::InFloatStream stream)
-{
-	// TODO: Lock needed, could be called multiple times from multiple threads.
-	LOG_DEBUG(SinkSDDS_i, "Received new float stream: " << stream.streamID());
-	m_processor.setStream(stream);
-	if (started()) {
-		m_processor.run();
-	}
-}
 
-void SinkSDDS_i::streamRemoved(bulkio::InFloatStream stream) {
-	// TODO: Lock needed, could be called multiple times from multiple threads.
-	LOG_DEBUG(SinkSDDS_i, "Removing float stream: " << stream.streamID());
-	m_processor.removeStream(stream);
-}
+void SinkSDDS_i::floatStreamAdded(bulkio::InFloatStream stream) { m_processor.setFloatStream(stream); }
+void SinkSDDS_i::floatStreamRemoved(bulkio::InFloatStream stream) {	m_processor.removeFloatStream(stream);}
+
+void SinkSDDS_i::shortStreamAdded(bulkio::InShortStream stream) { m_processor.setShortStream(stream); }
+void SinkSDDS_i::shortStreamRemoved(bulkio::InShortStream stream) {	m_processor.removeShortStream(stream);}
+
+void SinkSDDS_i::octetStreamAdded(bulkio::InOctetStream stream) { m_processor.setOctetStream(stream); }
+void SinkSDDS_i::octetStreamRemoved(bulkio::InOctetStream stream) {	m_processor.removeOctetStream(stream);}
 
 int SinkSDDS_i::serviceFunction()
 {

@@ -16,8 +16,15 @@ class SinkSDDS_i : public SinkSDDS_base
         void stop () throw (CF::Resource::StopError, CORBA::SystemException);
 
     private:
-        void streamAdded(bulkio::InFloatStream stream);
-        void streamRemoved(bulkio::InFloatStream stream);
+        void floatStreamAdded(bulkio::InFloatStream stream);
+        void floatStreamRemoved(bulkio::InFloatStream stream);
+
+        void shortStreamAdded(bulkio::InShortStream stream);
+		void shortStreamRemoved(bulkio::InShortStream stream);
+
+		void octetStreamAdded(bulkio::InOctetStream stream);
+		void octetStreamRemoved(bulkio::InOctetStream stream);
+
         BulkIOToSDDSProcessor m_processor;
 };
 

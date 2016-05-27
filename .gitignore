@@ -17,3 +17,4 @@ tests/*.xml
 *.pyc
 *.deps
 .dirstamp
+core*
