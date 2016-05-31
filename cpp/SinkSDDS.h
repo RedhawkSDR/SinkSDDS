@@ -3,6 +3,9 @@
 
 #include "SinkSDDS_base.h"
 #include "BulkIOToSDDSProcessor.h"
+#include <netinet/ip.h>
+#include "socketUtils/multicast.h"
+#include "socketUtils/unicast.h"
 
 class SinkSDDS_i : public SinkSDDS_base
 {
@@ -26,6 +29,8 @@ class SinkSDDS_i : public SinkSDDS_base
 		void octetStreamRemoved(bulkio::InOctetStream stream);
 
         BulkIOToSDDSProcessor m_processor;
+        int setupSocket();
+        connection_t m_connection;
 };
 
 #endif // SINKSDDS_I_IMPL_H

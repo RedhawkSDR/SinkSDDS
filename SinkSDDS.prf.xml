@@ -42,17 +42,6 @@
       <value>0</value>
       <action type="external"/>
     </simple>
-    <simple id="sdds_settings::complexity" mode="readwrite" name="complexity" type="short">
-      <description>Complexity of the data (0 for scalar, 1 for complex); this is overridden by SRI if available.</description>
-      <value>0</value>
-      <action type="external"/>
-    </simple>
-    <simple id="sdds_settings::frequency" mode="readwrite" name="frequency" type="double">
-      <description>Frequency of the data; this is overridden by SRI if available.</description>
-      <value>154000000</value>
-      <units>Hz</units>
-      <action type="external"/>
-    </simple>
     <simple id="sdds_settings::frequency_change_rate" mode="readwrite" name="frequency_change_rate" type="double">
       <description>df/dt for the SDDS header; this is overridden by SRI if available.</description>
       <value>0</value>
@@ -77,41 +66,20 @@
   </struct>
   <struct id="advanced_configuration" mode="readwrite">
     <description>advanced configuration options</description>
-    <simple id="advanced_configuration::buffer_size" mode="readwrite" name="buffer_size" type="long">
-      <description>Number of packets to put in the sddsBank at start-up.</description>
-      <value>200000</value>
-      <action type="external"/>
-    </simple>
     <simple id="advanced_configuration::time_out_in_sec" mode="readwrite" name="time_out_in_sec" type="short">
       <description>Maximum number of seconds to wait without receiving a CORBA packet to consider there was a break in transmission and to reset the SoS bit.</description>
       <value>2</value>
       <units>seconds</units>
       <action type="external"/>
     </simple>
-    <simple id="advanced_configuration::number_of_packets_in_burst" mode="readwrite" name="number_of_packets_in_burst" type="long">
-      <description>Number of packets to be sent before the throttle time is executed</description>
-      <value>100</value>
-      <action type="external"/>
-    </simple>
-    <simple id="advanced_configuration::throttle_time_between_packet_bursts" mode="readwrite" name="throttle_time_between_packet_bursts" type="long">
-      <description>Due to the pushPacket being larger then the VITA49 packet payload size packets may appear in bursts. This sets the number of microseconds between VITA49 transmitted packets. Default is 0. </description>
-      <value>2</value>
-      <units>seconds</units>
-      <action type="external"/>
-    </simple>
     <simple id="advanced_configuration::endian_representation" mode="readwrite" name="endian_representation" type="long">
-      <description>Will the packet's payload be sent in BIG_ENDIAN representation or LITTLE_ENDIAN representation. Default is NATIVE</description>
+      <description>Will the packet's payload be sent in BIG_ENDIAN representation or LITTLE_ENDIAN representation. Default is NETWORK_BYTE_ORDER</description>
       <value>0</value>
       <enumerations>
         <enumeration label="NATIVE" value="0"/>
         <enumeration label="LITTLE_ENDIAN" value="1"/>
         <enumeration label="BIG_ENDIAN" value="2"/>
       </enumerations>
-      <action type="external"/>
-    </simple>
-    <simple id="advanced_configuration::use_bulkio_sri" mode="readwrite" name="use_bulkio_sri" type="boolean">
-      <description>If set to true the follow on device will ignore the sample rate, stream id and mode being set in the context packet and use the values sent in the SRI from the SINK.</description>
-      <value>False</value>
       <action type="external"/>
     </simple>
     <configurationkind kindtype="property"/>
