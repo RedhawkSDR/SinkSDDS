@@ -48,11 +48,11 @@ private:
 	bulkio::InFloatStream m_floatStream;
 	bulkio::InShortStream m_shortStream;
 	bulkio::InOctetStream m_octetStream;
-	size_t getDataPointer(char **dataPointer);
+	size_t getDataPointer(char **dataPointer, bool &sriChanged);
 	int sendPacket(char* sddsData);
 	void initializeSDDSHeader();
 	void setSddsSettings(sdds_settings_struct settings);
-
+	void setSddsHeaderFromSri();
 	void _run();
 	bool m_shutdown, m_running;
 	boost::thread *m_processorThread;
@@ -67,8 +67,10 @@ private:
 	msghdr m_pkt_template;
 	SDDSpacket m_sdds_template;
 	iovec m_msg_iov[2];
-
-
+	BULKIO::StreamSRI m_sri;
+	bool m_first_run;
+	uint16_t m_seq;
+	char m_zero_pad_buffer[SDDS_DATA_SIZE]; // This buffer is only used if we do a non full read off of the stream API.
 };
 
 #endif /* BULKIOTOSDDSPROCESSOR_H_ */

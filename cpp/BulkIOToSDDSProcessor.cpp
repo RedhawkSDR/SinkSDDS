@@ -10,7 +10,7 @@
 PREPARE_LOGGING(BulkIOToSDDSProcessor)
 
 BulkIOToSDDSProcessor::BulkIOToSDDSProcessor(Resource_impl *parent):
-m_shutdown(false), m_running(false), m_processorThread(NULL), m_activeStream(NOT_SET), m_parent(parent) {
+m_shutdown(false), m_running(false), m_processorThread(NULL), m_activeStream(NOT_SET), m_parent(parent), m_first_run(true), m_seq(0) {
 
 	m_pkt_template.msg_name = NULL;
 	m_pkt_template.msg_namelen = 0;
@@ -24,6 +24,8 @@ m_shutdown(false), m_running(false), m_processorThread(NULL), m_activeStream(NOT
 	m_msg_iov[0].iov_len = SDDS_HEADER_SIZE;
 	m_msg_iov[1].iov_base = NULL; // This will be set later.
 	m_msg_iov[1].iov_len = SDDS_DATA_SIZE;
+
+	memset(&m_zero_pad_buffer, 0, SDDS_DATA_SIZE);
 
 	initializeSDDSHeader();
 }
@@ -64,7 +66,7 @@ void BulkIOToSDDSProcessor::run() {
 	m_processorThread = new boost::thread(boost::bind(&BulkIOToSDDSProcessor::_run, this));
 }
 
-size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer) {
+size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChanged) {
 	size_t bytes_read = 0;
 
 	switch (m_activeStream) {
@@ -72,21 +74,33 @@ size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer) {
 		m_floatBlock = m_floatStream.read(SDDS_DATA_SIZE / sizeof(float));
 		if (!!m_floatBlock) {  //TODO: Document bang bang
 			bytes_read = m_floatBlock.size() * sizeof(float);
-			*dataPointer = (char *) m_floatBlock.data();
+			*dataPointer = reinterpret_cast<char*>(m_floatBlock.data());
+			if (m_first_run || m_floatBlock.sriChanged()) {
+				m_sri = m_floatBlock.sri();
+				sriChanged = true;
+			}
 		}
 		break;
 	case SHORT_STREAM:
 		m_shortBlock = m_shortStream.read(SDDS_DATA_SIZE / sizeof(short));
 		if (!!m_shortBlock) {
 			bytes_read = m_shortBlock.size() * sizeof(short);
-			*dataPointer = (char *) m_shortBlock.data();
+			*dataPointer = reinterpret_cast<char*>(m_shortBlock.data());
+			if (m_first_run || m_shortBlock.sriChanged()) {
+				m_sri = m_shortBlock.sri();
+				sriChanged = true;
+			}
 		}
 		break;
 	case OCTET_STREAM:
 		m_octetBlock = m_octetStream.read(SDDS_DATA_SIZE / sizeof(char));
 		if (!!m_octetBlock) {
 			bytes_read = m_octetBlock.size() * sizeof(char);
-			*dataPointer = (char *) m_octetBlock.data();
+			*dataPointer = reinterpret_cast<char*>(m_octetBlock.data());
+			if (m_first_run || m_octetBlock.sriChanged()) {
+				m_sri = m_octetBlock.sri();
+				sriChanged = true;
+			}
 		}
 		break;
 	case NOT_SET:
@@ -100,24 +114,37 @@ size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer) {
 	return bytes_read;
 }
 
+void BulkIOToSDDSProcessor::setSddsHeaderFromSri() {
+	m_sdds_template.cx = m_sri.mode;
+	m_sdds_template.set_freq(1.0 / m_sri.xdelta);
+	std::cout << "setting the frequency field to: " << 1.0 / m_sri.xdelta << std::endl;
+//	m_sdds_template.dFdT // TODO: What should we do with this?
+}
 void BulkIOToSDDSProcessor::_run() {
 	m_running = true;
 	char *sddsDataBlock;
 	size_t bytes_read = 0;
 
 	while (not m_shutdown) {
-		bytes_read = getDataPointer(&sddsDataBlock); // TODO: We should have an m_sri that gets passed in here and an sriChanged check.
+		bool sriChanged = false;
+		bytes_read = getDataPointer(&sddsDataBlock, sriChanged);
+		if (sriChanged) {
+//			pushSri(); // TODO:
+			setSddsHeaderFromSri();
+		}
+
+		m_first_run = false; // TODO: Can we not set this every single time we run this loop? Seems silly.
+
 		if (not bytes_read) {
 			//TODO: LOG and send an EOS
 			m_activeStream = NOT_SET;
 			m_shutdown = true;
 			continue;
-		} else if (bytes_read != SDDS_DATA_SIZE) {
-			// TODO: Should we zero pad and send it out anyway?
-			LOG_INFO(BulkIOToSDDSProcessor, "Received " << bytes_read << " rather than the expected " << SDDS_DATA_SIZE << " stream will stop.");
-			m_activeStream = NOT_SET;
-			m_shutdown = true;
-			continue;
+		} else if (bytes_read < SDDS_DATA_SIZE) {
+			// This happens if the stream ends or if we get a change in an SRI field like xdelta.
+			memset(&m_zero_pad_buffer[0], 0, SDDS_DATA_SIZE); // Zero out the whole thing (overkill) TODO: No overkill
+			memcpy(&m_zero_pad_buffer[0], &sddsDataBlock[0], bytes_read); // Fill it with what we have.
+			sddsDataBlock = &m_zero_pad_buffer[0]; // Use the internal buffer instead of the block now.
 		}
 
 		if (sendPacket(sddsDataBlock) < 0) {
@@ -127,12 +154,17 @@ void BulkIOToSDDSProcessor::_run() {
 			continue;
 		}
 	}
+
+	m_first_run = true;
 	m_shutdown = false;
 	m_running = false;
 }
 
 int BulkIOToSDDSProcessor::sendPacket(char* dataBlock) {
 	ssize_t numSent;
+	m_sdds_template.set_seq(m_seq);
+	m_seq++;
+	if (m_seq != 0 && m_seq % 32 == 31) { m_seq++; } // Account for the parity packet that we aren't sending
 	m_msg_iov[1].iov_base = dataBlock;
 	numSent = sendmsg(m_connection.sock, &m_pkt_template, 0);
 	LOG_TRACE(BulkIOToSDDSProcessor, "Pushed " << numSent << " bytes out of socket.")
