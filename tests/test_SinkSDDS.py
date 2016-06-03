@@ -7,7 +7,7 @@ import time
 import socket
 import struct
 
-DEBUG_LEVEL = 5
+DEBUG_LEVEL = 3
 UNICAST_PORT = 1234
 UNICAST_IP = '127.0.0.1'
 
@@ -18,13 +18,49 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
     # launch the component.
     SPD_FILE = '../SinkSDDS.spd.xml'
 
+    def testXDeltaChange(self):
+        self.octetConnect();
+        sb.start()
+        
+        #  We expect to get 1 packet of 1024 9's then a packet of a single 9, and 1023 zeros, then a packet of 1024 9's
+        fakeData1 = 1025*[9]
+        self.sendPacket(fakeData1, 1000.0, False)
+        fakeData2 = 1024*[9]
+        self.sendPacket(fakeData2, 2000, False)
+        
+        expected1 = 1024*[9]
+        expected2 = 1*[9] + 1023*[0]
+        expected3 = 1024*[9]
+        
+        recv = self.getPacket(10000)
+        self.assertEqual(expected1, list(struct.unpack('1024B', recv[-1024:])))
+        recv = self.getPacket(10000)
+        self.assertEqual(expected2, list(struct.unpack('1024B', recv[-1024:])))
+        recv = self.getPacket(10000)
+        self.assertEqual(expected3, list(struct.unpack('1024B', recv[-1024:])))
 
-    def testDataOctetIn(self):
-        self.comp.start()
+    def testRealOctet(self):
+        self.dataOctetInTest(False)
+    def testComplexOctet(self):
+        self.dataOctetInTest(True)
+        
+    def testRealShort(self):
+        self.dataShortInTest(False)
+    def testComplexShort(self):
+        self.dataShortInTest(True)
+        
+    def testRealFloat(self):
+        self.dataFloatInTest(False)
+    def testComplexFloat(self):
+        self.dataFloatInTest(True)
+        
+    def dataOctetInTest(self, is_complex):
+        self.octetConnect()
+        sb.start()
         
         # Create data
         fakeData = [x % 256 for x in range(1024)]
-        recv = self.sendPacketGetPacket(fakeData, 'dataOctetIn')
+        recv = self.sendPacketGetPacket(fakeData, is_complex=is_complex)
         
         # Validate correct amount of data was received
         self.assertEqual(len(recv), 1080)
@@ -32,12 +68,13 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         # Validate data is correct
         self.assertEqual(fakeData, list(struct.unpack('1024B', recv[-1024:])))
 
-    def testDataShortIn(self):
-        self.comp.start()
+    def dataShortInTest(self, is_complex):
+        self.shortConnect()
+        sb.start()
         
         # Create data
         fakeData = [x % 256 for x in range(1024/2)]
-        recv = self.sendPacketGetPacket(fakeData, 'dataShortIn')
+        recv = self.sendPacketGetPacket(fakeData, is_complex=is_complex)
         
         # Validate correct amount of data was received
         self.assertEqual(len(recv), 1080)
@@ -45,12 +82,13 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         # Validate data is correct
         self.assertEqual(fakeData, list(struct.unpack('512H', recv[-1024:])))
 
-    def testDataFloatIn(self):
-        self.comp.start()
+    def dataFloatInTest(self, is_complex):
+        self.floatConnect()
+        sb.start()
         
         # Create data
         fakeData = [x % 256 for x in range(1024/4)]
-        recv = self.sendPacketGetPacket(fakeData, 'dataFloatIn')
+        recv = self.sendPacketGetPacket(fakeData, is_complex=is_complex)
         
         # Validate correct amount of data was received
         self.assertEqual(len(recv), 1080)
@@ -58,25 +96,31 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         # Validate data is correct
         self.assertEqual(fakeData, list(struct.unpack('256f', recv[-1024:])))
         
-    def sendPacketGetPacket(self, data_to_send, port_name, sample_rate=1.0):
-        # Create source and connect it to component
-        source = sb.DataSource();
-        source.connect(self.comp, providesPortName=port_name)
-        source.start()
-        
-        source.push(data_to_send, False, self.id(), sample_rate, False)
-        
-                # Wait for data
+    def sendPacketGetPacket(self, data_to_send, sample_rate=1.0, is_complex=False, socket_read_size=1080):
+        self.sendPacket(data_to_send, sample_rate, is_complex)
+        # Wait for data
         time.sleep(0.1)
+        return self.getPacket(socket_read_size)
         
+    def sendPacket(self, data_to_send, sample_rate=1.0, is_complex=False):
+        self.source.push(data_to_send, False, self.id(), sample_rate, is_complex)
+        
+    def getPacket(self, socket_read_size=1080):
         # Get data
         received_data = []
         try:
-             received_data = self.uclient.receive(1080)
+             received_data = self.uclient.receive(socket_read_size)
         except socket.error as e:
             print "Socket read error: ", e
         
         return received_data
+    
+    def floatConnect(self):
+        self.source.connect(self.comp, usesPortName='floatOut')
+    def shortConnect(self):
+        self.source.connect(self.comp, usesPortName='shortOut')
+    def octetConnect(self):
+        self.source.connect(self.comp, usesPortName='octetOut')
 
     def tearDown(self):
         # Clean up all sandbox artifacts created during test
@@ -111,6 +155,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         self.comp.network_settings.port = UNICAST_PORT
         self.comp.network_settings.vlan = 0
         self.uclient = unicast.unicast_client(UNICAST_IP, UNICAST_PORT)
+        self.source = sb.DataSource();
 
 if __name__ == "__main__":
     ossie.utils.testing.main("../SinkSDDS.spd.xml") # By default tests all implementations
