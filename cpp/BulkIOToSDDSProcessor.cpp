@@ -49,6 +49,7 @@ BulkIOToSDDSProcessor::~BulkIOToSDDSProcessor() {
 }
 
 void BulkIOToSDDSProcessor::run() {
+	LOG_TRACE(BulkIOToSDDSProcessor, "Entering the Run Method");
 	if (m_processorThread) {
 		if (m_running) {
 			LOG_ERROR(BulkIOToSDDSProcessor, "The BulkIO To SDDS Processor is already running, cannot start a new stream without first receiving an EOS!");
@@ -63,7 +64,8 @@ void BulkIOToSDDSProcessor::run() {
 		return;
 	}
 
-	m_processorThread = new boost::thread(boost::bind(&BulkIOToSDDSProcessor::_run, this));
+	m_processorThread = new boost::thread(boost::bind(&BulkIOToSDDSProcessor::_run, boost::ref(*this)));
+	LOG_TRACE(BulkIOToSDDSProcessor, "Leaving the Run Method");
 }
 
 size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChanged) {
@@ -117,10 +119,10 @@ size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChange
 void BulkIOToSDDSProcessor::setSddsHeaderFromSri() {
 	m_sdds_template.cx = m_sri.mode;
 	m_sdds_template.set_freq(1.0 / m_sri.xdelta);
-	std::cout << "setting the frequency field to: " << 1.0 / m_sri.xdelta << std::endl;
 //	m_sdds_template.dFdT // TODO: What should we do with this?
 }
 void BulkIOToSDDSProcessor::_run() {
+	LOG_TRACE(BulkIOToSDDSProcessor, "Entering the _run Method");
 	m_running = true;
 	char *sddsDataBlock;
 	size_t bytes_read = 0;
@@ -128,6 +130,7 @@ void BulkIOToSDDSProcessor::_run() {
 	while (not m_shutdown) {
 		bool sriChanged = false;
 		bytes_read = getDataPointer(&sddsDataBlock, sriChanged);
+		LOG_TRACE(BulkIOToSDDSProcessor, "Received " << bytes_read << " bytes from bulkIO");
 		if (sriChanged) {
 //			pushSri(); // TODO:
 			setSddsHeaderFromSri();
@@ -158,6 +161,7 @@ void BulkIOToSDDSProcessor::_run() {
 	m_first_run = true;
 	m_shutdown = false;
 	m_running = false;
+	LOG_TRACE(BulkIOToSDDSProcessor, "Exiting the _run Method");
 }
 
 int BulkIOToSDDSProcessor::sendPacket(char* dataBlock) {

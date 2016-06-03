@@ -12,19 +12,20 @@
 
 PREPARE_LOGGING(SinkSDDS_i)
 
+//TODO: Created property that allows the user to optionally disable the SRI pushes out the attach port.
 //TODO: deal with the attach call, see if there are any callbacks available and have it call only if started.
 SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
     SinkSDDS_base(uuid, label),
 	m_processor(this)
 {
-	dataFloatIn->addStreamListener(this, &SinkSDDS_i::floatStreamAdded);
-	dataFloatIn->removeStreamListener(this, &SinkSDDS_i::floatStreamRemoved);
+	dataFloatIn->addStreamListener(&m_processor, &BulkIOToSDDSProcessor::setFloatStream);
+	dataFloatIn->removeStreamListener(&m_processor, &BulkIOToSDDSProcessor::removeFloatStream);
 
-	dataShortIn->addStreamListener(this, &SinkSDDS_i::shortStreamAdded);
-	dataShortIn->removeStreamListener(this, &SinkSDDS_i::shortStreamRemoved);
+	dataShortIn->addStreamListener(&m_processor, &BulkIOToSDDSProcessor::setShortStream);
+	dataShortIn->removeStreamListener(&m_processor, &BulkIOToSDDSProcessor::removeShortStream);
 
-	dataOctetIn->addStreamListener(this, &SinkSDDS_i::octetStreamAdded);
-	dataOctetIn->removeStreamListener(this, &SinkSDDS_i::octetStreamRemoved);
+	dataOctetIn->addStreamListener(&m_processor, &BulkIOToSDDSProcessor::setOctetStream);
+	dataOctetIn->removeStreamListener(&m_processor, &BulkIOToSDDSProcessor::removeOctetStream);
 
 	memset(&m_connection, 0, sizeof(m_connection));
 }
@@ -64,15 +65,6 @@ void SinkSDDS_i::stop () throw (CF::Resource::StopError, CORBA::SystemException)
 		memset(&m_connection, 0, sizeof(m_connection));
 	}
 }
-
-void SinkSDDS_i::floatStreamAdded(bulkio::InFloatStream stream) { m_processor.setFloatStream(stream); }
-void SinkSDDS_i::floatStreamRemoved(bulkio::InFloatStream stream) {	m_processor.removeFloatStream(stream);}
-
-void SinkSDDS_i::shortStreamAdded(bulkio::InShortStream stream) { m_processor.setShortStream(stream); }
-void SinkSDDS_i::shortStreamRemoved(bulkio::InShortStream stream) {	m_processor.removeShortStream(stream);}
-
-void SinkSDDS_i::octetStreamAdded(bulkio::InOctetStream stream) { m_processor.setOctetStream(stream); }
-void SinkSDDS_i::octetStreamRemoved(bulkio::InOctetStream stream) {	m_processor.removeOctetStream(stream);}
 
 int SinkSDDS_i::serviceFunction()
 {
