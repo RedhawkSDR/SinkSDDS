@@ -68,14 +68,17 @@ void BulkIOToSDDSProcessor::run() {
 	LOG_TRACE(BulkIOToSDDSProcessor, "Leaving the Run Method");
 }
 
+//TODO: SOOOOO MUCH COPY PASTE!
 size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChanged) {
 	size_t bytes_read = 0;
+	int scale_for_complex = 0;  // Needed because the size returns number of samples.
 
 	switch (m_activeStream) {
 	case FLOAT_STREAM:
-		m_floatBlock = m_floatStream.read(SDDS_DATA_SIZE / sizeof(float));
+		scale_for_complex = (m_floatStream.sri().mode == 0 ? 1 : 2);
+		m_floatBlock = m_floatStream.read(SDDS_DATA_SIZE / sizeof(float) / scale_for_complex);
 		if (!!m_floatBlock) {  //TODO: Document bang bang
-			bytes_read = m_floatBlock.size() * sizeof(float);
+			bytes_read = m_floatBlock.size() * sizeof(float) * scale_for_complex;
 			*dataPointer = reinterpret_cast<char*>(m_floatBlock.data());
 			if (m_first_run || m_floatBlock.sriChanged()) {
 				m_sri = m_floatBlock.sri();
@@ -84,9 +87,10 @@ size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChange
 		}
 		break;
 	case SHORT_STREAM:
-		m_shortBlock = m_shortStream.read(SDDS_DATA_SIZE / sizeof(short));
+		scale_for_complex = (m_shortStream.sri().mode == 0 ? 1 : 2);
+		m_shortBlock = m_shortStream.read(SDDS_DATA_SIZE / sizeof(short) / scale_for_complex);
 		if (!!m_shortBlock) {
-			bytes_read = m_shortBlock.size() * sizeof(short);
+			bytes_read = m_shortBlock.size() * sizeof(short) * scale_for_complex;
 			*dataPointer = reinterpret_cast<char*>(m_shortBlock.data());
 			if (m_first_run || m_shortBlock.sriChanged()) {
 				m_sri = m_shortBlock.sri();
@@ -95,9 +99,10 @@ size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChange
 		}
 		break;
 	case OCTET_STREAM:
-		m_octetBlock = m_octetStream.read(SDDS_DATA_SIZE / sizeof(char));
+		scale_for_complex = (m_octetStream.sri().mode == 0 ? 1 : 2);
+		m_octetBlock = m_octetStream.read(SDDS_DATA_SIZE / sizeof(char) / scale_for_complex);
 		if (!!m_octetBlock) {
-			bytes_read = m_octetBlock.size() * sizeof(char);
+			bytes_read = m_octetBlock.size() * sizeof(char) * scale_for_complex;
 			*dataPointer = reinterpret_cast<char*>(m_octetBlock.data());
 			if (m_first_run || m_octetBlock.sriChanged()) {
 				m_sri = m_octetBlock.sri();
