@@ -15,7 +15,7 @@ m_shutdown(false), m_running(false), m_processorThread(NULL), m_activeStream(NOT
 	m_pkt_template.msg_name = NULL;
 	m_pkt_template.msg_namelen = 0;
 	m_pkt_template.msg_iov = &m_msg_iov[0];
-	m_pkt_template.msg_iovlen = 2; // We use two iov. One is the SDDS header and the second is the payload.
+	m_pkt_template.msg_iovlen = 3; // We use three iov. One is the SDDS header and the second is the payload, the third for any zero padding if necessary.
 	m_pkt_template.msg_control = NULL;
 	m_pkt_template.msg_controllen = 0;
 	m_pkt_template.msg_flags = NULL;
@@ -24,6 +24,8 @@ m_shutdown(false), m_running(false), m_processorThread(NULL), m_activeStream(NOT
 	m_msg_iov[0].iov_len = SDDS_HEADER_SIZE;
 	m_msg_iov[1].iov_base = NULL; // This will be set later.
 	m_msg_iov[1].iov_len = SDDS_DATA_SIZE;
+	m_msg_iov[2].iov_base = m_zero_pad_buffer;
+	m_msg_iov[2].iov_len = 0;
 
 	memset(&m_zero_pad_buffer, 0, SDDS_DATA_SIZE);
 
@@ -71,14 +73,12 @@ void BulkIOToSDDSProcessor::run() {
 //TODO: SOOOOO MUCH COPY PASTE!
 size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChanged) {
 	size_t bytes_read = 0;
-	int scale_for_complex = 0;  // Needed because the size returns number of samples.
 
 	switch (m_activeStream) {
 	case FLOAT_STREAM:
-		scale_for_complex = (m_floatStream.sri().mode == 0 ? 1 : 2);
-		m_floatBlock = m_floatStream.read(SDDS_DATA_SIZE / sizeof(float) / scale_for_complex);
+		m_floatBlock = m_floatStream.read(SDDS_DATA_SIZE / sizeof(float));
 		if (!!m_floatBlock) {  //TODO: Document bang bang
-			bytes_read = m_floatBlock.size() * sizeof(float) * scale_for_complex;
+			bytes_read = m_floatBlock.size() * sizeof(float);
 			*dataPointer = reinterpret_cast<char*>(m_floatBlock.data());
 			if (m_first_run || m_floatBlock.sriChanged()) {
 				m_sri = m_floatBlock.sri();
@@ -87,10 +87,9 @@ size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChange
 		}
 		break;
 	case SHORT_STREAM:
-		scale_for_complex = (m_shortStream.sri().mode == 0 ? 1 : 2);
-		m_shortBlock = m_shortStream.read(SDDS_DATA_SIZE / sizeof(short) / scale_for_complex);
+		m_shortBlock = m_shortStream.read(SDDS_DATA_SIZE / sizeof(short));
 		if (!!m_shortBlock) {
-			bytes_read = m_shortBlock.size() * sizeof(short) * scale_for_complex;
+			bytes_read = m_shortBlock.size() * sizeof(short);
 			*dataPointer = reinterpret_cast<char*>(m_shortBlock.data());
 			if (m_first_run || m_shortBlock.sriChanged()) {
 				m_sri = m_shortBlock.sri();
@@ -99,10 +98,9 @@ size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChange
 		}
 		break;
 	case OCTET_STREAM:
-		scale_for_complex = (m_octetStream.sri().mode == 0 ? 1 : 2);
-		m_octetBlock = m_octetStream.read(SDDS_DATA_SIZE / sizeof(char) / scale_for_complex);
+		m_octetBlock = m_octetStream.read(SDDS_DATA_SIZE / sizeof(char));
 		if (!!m_octetBlock) {
-			bytes_read = m_octetBlock.size() * sizeof(char) * scale_for_complex;
+			bytes_read = m_octetBlock.size() * sizeof(char);
 			*dataPointer = reinterpret_cast<char*>(m_octetBlock.data());
 			if (m_first_run || m_octetBlock.sriChanged()) {
 				m_sri = m_octetBlock.sri();
@@ -124,13 +122,16 @@ size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChange
 void BulkIOToSDDSProcessor::setSddsHeaderFromSri() {
 	m_sdds_template.cx = m_sri.mode;
 	m_sdds_template.set_freq(1.0 / m_sri.xdelta);
+	if (m_first_run) {
+		m_sdds_template.sos = 1;
+	}
 //	m_sdds_template.dFdT // TODO: What should we do with this?
 }
 void BulkIOToSDDSProcessor::_run() {
 	LOG_TRACE(BulkIOToSDDSProcessor, "Entering the _run Method");
 	m_running = true;
 	char *sddsDataBlock;
-	size_t bytes_read = 0;
+	int bytes_read = 0;
 
 	while (not m_shutdown) {
 		bool sriChanged = false;
@@ -141,26 +142,22 @@ void BulkIOToSDDSProcessor::_run() {
 			setSddsHeaderFromSri();
 		}
 
-		m_first_run = false; // TODO: Can we not set this every single time we run this loop? Seems silly.
 
 		if (not bytes_read) {
 			//TODO: LOG and send an EOS
 			m_activeStream = NOT_SET;
 			m_shutdown = true;
 			continue;
-		} else if (bytes_read < SDDS_DATA_SIZE) {
-			// This happens if the stream ends or if we get a change in an SRI field like xdelta.
-			memset(&m_zero_pad_buffer[0], 0, SDDS_DATA_SIZE); // Zero out the whole thing (overkill) TODO: No overkill
-			memcpy(&m_zero_pad_buffer[0], &sddsDataBlock[0], bytes_read); // Fill it with what we have.
-			sddsDataBlock = &m_zero_pad_buffer[0]; // Use the internal buffer instead of the block now.
 		}
 
-		if (sendPacket(sddsDataBlock) < 0) {
+		if (sendPacket(sddsDataBlock, bytes_read) < 0) {
 			LOG_ERROR(BulkIOToSDDSProcessor, "Failed to push packet over socket, stream will be closed.");
 			m_activeStream = NOT_SET;
 			m_shutdown = true;
 			continue;
 		}
+
+		m_first_run = false; // TODO: Can we not set this every single time we run this loop? Seems silly.
 	}
 
 	m_first_run = true;
@@ -169,15 +166,41 @@ void BulkIOToSDDSProcessor::_run() {
 	LOG_TRACE(BulkIOToSDDSProcessor, "Exiting the _run Method");
 }
 
-int BulkIOToSDDSProcessor::sendPacket(char* dataBlock) {
+
+int BulkIOToSDDSProcessor::sendPacket(char* dataBlock, int num_bytes) {
+/**
+ * Four different situations covered here.
+ * 1. We've read exactly 1024 bytes. Occurs when the mode is real, we get exactly one packets worth and this method runs only once.
+ * 2. We've read exactly 2*1024 bytes. Occurs when the mode is complex, this method runs twice recursively. Decreasing the num_bytes
+ * 3. We've read less less than 1024 bytes, occurs when the stream is changing.
+ * 4. We've read more than 1024, but less than 2*1024.
+ */
+
+	LOG_TRACE(BulkIOToSDDSProcessor, "sendPacket called, told to send " << num_bytes <<  "bytes");
+	if (num_bytes <= 0)
+		return 0;
+
 	ssize_t numSent;
+	// Reset the start of sequence flag if it is not the first packet sent, the sequence number has rolled over, and sos is currently set.
+	if (not m_first_run && m_seq == 0 && m_sdds_template.sos) { m_sdds_template.sos = 0; }
+
 	m_sdds_template.set_seq(m_seq);
 	m_seq++;
 	if (m_seq != 0 && m_seq % 32 == 31) { m_seq++; } // Account for the parity packet that we aren't sending
+
+
 	m_msg_iov[1].iov_base = dataBlock;
+	m_msg_iov[1].iov_len = (num_bytes >= SDDS_DATA_SIZE) ? SDDS_DATA_SIZE : num_bytes;
+
+	m_msg_iov[2].iov_len = SDDS_DATA_SIZE - m_msg_iov[1].iov_len;
+
 	numSent = sendmsg(m_connection.sock, &m_pkt_template, 0);
+	if (numSent < 0) {return numSent;} // Error occurred
+
 	LOG_TRACE(BulkIOToSDDSProcessor, "Pushed " << numSent << " bytes out of socket.")
-	return numSent;
+
+	// Its possible we read more than a single packet (if the mode is real we would read 2).
+	return sendPacket(dataBlock + SDDS_DATA_SIZE, num_bytes - m_msg_iov[1].iov_len);
 }
 
 /**

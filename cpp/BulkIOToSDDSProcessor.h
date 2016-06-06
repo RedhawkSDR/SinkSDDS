@@ -49,7 +49,7 @@ private:
 	bulkio::InShortStream m_shortStream;
 	bulkio::InOctetStream m_octetStream;
 	size_t getDataPointer(char **dataPointer, bool &sriChanged);
-	int sendPacket(char* sddsData);
+	int sendPacket(char* sddsData, int num_bytes);
 	void initializeSDDSHeader();
 	void setSddsSettings(sdds_settings_struct settings);
 	void setSddsHeaderFromSri();
@@ -66,7 +66,7 @@ private:
 	connection_t m_connection;
 	msghdr m_pkt_template;
 	SDDSpacket m_sdds_template;
-	iovec m_msg_iov[2];
+	iovec m_msg_iov[3];
 	BULKIO::StreamSRI m_sri;
 	bool m_first_run;
 	uint16_t m_seq;
