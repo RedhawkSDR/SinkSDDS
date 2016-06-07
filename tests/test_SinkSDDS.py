@@ -20,6 +20,17 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
     # launch the component.
     SPD_FILE = '../SinkSDDS.spd.xml'
 
+# TODO: Standard Format check
+# TODO: Original Format check
+# TODO: Spectral Sense check
+# TODO: Attach tests
+# TODO: df/dt drift test
+# TODO: Multiple streams added
+# TODO: Add/Remove stream.
+# TODO: Endianess
+# TODO: Time code valid checks
+
+
     # This unit test takes FOREVER (going through all the packets) how can we speed this thing up?
 #     def testSoS(self):
 #         self.octetConnect()
@@ -45,6 +56,17 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 #         self.assertTrue(h.SoS == 0, "SoS bit should not be set")
             
 
+    def testTimeDrift(self):
+        self.octetConnect()
+        sb.start()
+        fakeData = 100*[10];
+        for x in range(100):
+            self.sendPacket(fakeData, 1.0, True, eos=False)
+        
+        time.sleep(1)
+            
+        
+        
     def testCx(self):
         self.octetConnect()
         sb.start()

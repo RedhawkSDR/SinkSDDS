@@ -88,15 +88,6 @@ void SinkSDDS_base::loadProperties()
                 "external",
                 "property");
 
-    addProperty(advanced_configuration,
-                advanced_configuration_struct(),
-                "advanced_configuration",
-                "",
-                "readwrite",
-                "",
-                "external",
-                "property");
-
 }
 
 

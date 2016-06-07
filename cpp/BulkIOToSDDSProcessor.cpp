@@ -10,7 +10,7 @@
 PREPARE_LOGGING(BulkIOToSDDSProcessor)
 
 BulkIOToSDDSProcessor::BulkIOToSDDSProcessor(Resource_impl *parent):
-m_shutdown(false), m_running(false), m_processorThread(NULL), m_activeStream(NOT_SET), m_parent(parent), m_first_run(true), m_seq(0) {
+m_shutdown(false), m_running(false), m_processorThread(NULL), m_activeStream(NOT_SET), m_parent(parent), m_first_run(true), m_seq(0), m_block_clock_drift(0.0) {
 
 	m_pkt_template.msg_name = NULL;
 	m_pkt_template.msg_namelen = 0;
@@ -39,8 +39,11 @@ void BulkIOToSDDSProcessor::initializeSDDSHeader(){
 }
 
 void BulkIOToSDDSProcessor::setSddsSettings(sdds_settings_struct settings) {
+	//TODO: Locking?
 	m_sdds_template.sf = settings.standard_format;
 	m_sdds_template.of = settings.original_format;
+	m_sdds_template.ss = settings.spectral_sense;
+	m_user_settings = settings;
 }
 
 BulkIOToSDDSProcessor::~BulkIOToSDDSProcessor() {
@@ -70,63 +73,16 @@ void BulkIOToSDDSProcessor::run() {
 	LOG_TRACE(BulkIOToSDDSProcessor, "Leaving the Run Method");
 }
 
-//TODO: SOOOOO MUCH COPY PASTE!
-size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChanged) {
-	size_t bytes_read = 0;
-
-	switch (m_activeStream) {
-	case FLOAT_STREAM:
-		m_floatBlock = m_floatStream.read(SDDS_DATA_SIZE / sizeof(float));
-		if (!!m_floatBlock) {  //TODO: Document bang bang
-			bytes_read = m_floatBlock.size() * sizeof(float);
-			*dataPointer = reinterpret_cast<char*>(m_floatBlock.data());
-			if (m_first_run || m_floatBlock.sriChanged()) {
-				m_sri = m_floatBlock.sri();
-				sriChanged = true;
-			}
-		}
-		break;
-	case SHORT_STREAM:
-		m_shortBlock = m_shortStream.read(SDDS_DATA_SIZE / sizeof(short));
-		if (!!m_shortBlock) {
-			bytes_read = m_shortBlock.size() * sizeof(short);
-			*dataPointer = reinterpret_cast<char*>(m_shortBlock.data());
-			if (m_first_run || m_shortBlock.sriChanged()) {
-				m_sri = m_shortBlock.sri();
-				sriChanged = true;
-			}
-		}
-		break;
-	case OCTET_STREAM:
-		m_octetBlock = m_octetStream.read(SDDS_DATA_SIZE / sizeof(char));
-		if (!!m_octetBlock) {
-			bytes_read = m_octetBlock.size() * sizeof(char);
-			*dataPointer = reinterpret_cast<char*>(m_octetBlock.data());
-			if (m_first_run || m_octetBlock.sriChanged()) {
-				m_sri = m_octetBlock.sri();
-				sriChanged = true;
-			}
-		}
-		break;
-	case NOT_SET:
-		LOG_ERROR(BulkIOToSDDSProcessor, "Processor thread running but the active stream is not set");
-		break;
-	default:
-		LOG_ERROR(BulkIOToSDDSProcessor, "Processor thread running but the active stream is not set");
-		break;
-	};
-
-	return bytes_read;
-}
-
 void BulkIOToSDDSProcessor::setSddsHeaderFromSri() {
 	m_sdds_template.cx = m_sri.mode;
-	m_sdds_template.set_freq(1.0 / m_sri.xdelta);
+	// This is the frequency of the digitizer clock which is twice the sample frequency if complex.
+	double freq = (m_sri.mode == 1) ? (2.0 / m_sri.xdelta) : (1.0 / m_sri.xdelta);
+	m_sdds_template.set_freq(freq);
 	if (m_first_run) {
 		m_sdds_template.sos = 1;
 	}
-//	m_sdds_template.dFdT // TODO: What should we do with this?
 }
+
 void BulkIOToSDDSProcessor::_run() {
 	LOG_TRACE(BulkIOToSDDSProcessor, "Entering the _run Method");
 	m_running = true;
@@ -194,13 +150,39 @@ int BulkIOToSDDSProcessor::sendPacket(char* dataBlock, int num_bytes) {
 
 	m_msg_iov[2].iov_len = SDDS_DATA_SIZE - m_msg_iov[1].iov_len;
 
+	setSddsTimestamp();
 	numSent = sendmsg(m_connection.sock, &m_pkt_template, 0);
 	if (numSent < 0) {return numSent;} // Error occurred
 
 	LOG_TRACE(BulkIOToSDDSProcessor, "Pushed " << numSent << " bytes out of socket.")
 
-	// Its possible we read more than a single packet (if the mode is real we would read 2).
+	// Its possible we read more than a single packet if the mode changed on us (known bug)
 	return sendPacket(dataBlock + SDDS_DATA_SIZE, num_bytes - m_msg_iov[1].iov_len);
+}
+
+void BulkIOToSDDSProcessor::setSddsTimestamp() {
+	SDDSTime sdds_time(m_current_time.twsec - getStartOfYear(), m_current_time.tfsec);
+	m_sdds_template.set_SDDSTime(sdds_time);
+	m_sdds_template.set_ttv((m_current_time.tcstatus == BULKIO::TCS_VALID));
+	m_sdds_template.set_dfdt(m_block_clock_drift);
+}
+
+time_t BulkIOToSDDSProcessor::getStartOfYear(){
+	time_t systemtime;
+	tm *systemtime_struct;
+
+	time(&systemtime);
+
+	/* System Time in a struct of day, month, year */
+	systemtime_struct = localtime(&systemtime);
+
+	/* Find time from EPOCH to Jan 1st of current year */
+	systemtime_struct->tm_sec=0;
+	systemtime_struct->tm_min=0;
+	systemtime_struct->tm_hour=0;
+	systemtime_struct->tm_mday=1;
+	systemtime_struct->tm_mon=0;
+	return mktime(systemtime_struct);
 }
 
 /**
@@ -231,6 +213,23 @@ void BulkIOToSDDSProcessor::setConnection(connection_t connection) {
 	m_pkt_template.msg_namelen = sizeof(m_connection.addr);
 }
 
+// TODO: Reread the spec, this doesnt give it in the right units
+double BulkIOToSDDSProcessor::getClockDrift(std::list<bulkio::SampleTimestamp> ts, size_t numSamples) {
+	if (ts.size() == 1) {
+		return 0.0;
+	}
+
+	// The last time stamp does not indicate the time stamp of the last sample, it maps to the offset.
+	// If we collect 512 Samples, and the last time stamp is for 511th sample (indexed by 0) then we
+	// actually do have the last timestamp, otherwise we need to account for and estimate the last time stamp.
+	int num_samples_missing_timestamps = numSamples - (ts.back().offset + 1);
+	BULKIO::PrecisionUTCTime last_sample_ts = ts.back().time + num_samples_missing_timestamps * m_sri.xdelta;
+
+	double pkt_delta = last_sample_ts - ts.front().time;
+	double expected_pkt_delta = ts.front().time + numSamples*m_sri.xdelta - ts.front().time;
+
+	return expected_pkt_delta - pkt_delta;
+}
 
 
 
@@ -238,10 +237,86 @@ void BulkIOToSDDSProcessor::setConnection(connection_t connection) {
 
 
 
+//TODO: SOOOOO MUCH COPY PASTE!
+// If the mode starts as complex we will see the mode reflected as complex correctly in the block SRI
+// If the mode starts as real we will see the mode reflected as real correctly in the block SRI
+// If the mode changes from real to complex, or from complex to real, we will NOT see the correct mode prior to the read call.
+// This causes problems in rare cases were the mode changes in a stream, going from real -> complex we will end up with twice the number of byes we would expect
+// Going from complex to real we end up with half the number of bytes we would expect.
+// A stream changing from real to complex or complex to real should almost never happen though.
+size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChanged) {
+	size_t bytes_read = 0;
+	size_t complex_scale = 0;
 
+	switch (m_activeStream) {
+	case FLOAT_STREAM:
+		complex_scale = (m_floatStream.sri().mode == 0 ? 1 : 2);
+		m_floatBlock = m_floatStream.read(SDDS_DATA_SIZE / sizeof(float) / complex_scale);
+		if (!!m_floatBlock) {  //TODO: Document bang bang
+			m_current_time = m_floatBlock.getTimestamps().front().time;
+			m_block_clock_drift = getClockDrift(m_floatBlock.getTimestamps(), SDDS_DATA_SIZE / sizeof(float) / complex_scale);
 
+			bytes_read = m_floatBlock.size() * sizeof(float);
+			*dataPointer = reinterpret_cast<char*>(m_floatBlock.data());
+			if (m_first_run || m_floatBlock.sriChanged()) {
+				m_sri = m_floatBlock.sri();
+				sriChanged = true;
+				if (m_floatBlock.sriChangeFlags() & bulkio::sri::MODE) {
+					LOG_ERROR(BulkIOToSDDSProcessor, "KNOWN ISSUE!! Mode was changed in the middle of a stream. "
+							"Going from Real->Complex this will cause 1 SDDS packets worth of data to have an incorrect time stamp. "
+							"Going from Complex->Real will cause a single packet to be erroneously padded with zeros.");
+				}
+			}
+		}
+		break;
+	case SHORT_STREAM:
+		complex_scale = (m_shortStream.sri().mode == 0 ? 1 : 2);
+		m_shortBlock = m_shortStream.read(SDDS_DATA_SIZE / sizeof(short) / complex_scale);
+		if (!!m_shortBlock) {
+			m_current_time = m_shortBlock.getTimestamps().front().time;
+			m_block_clock_drift = getClockDrift(m_shortBlock.getTimestamps(), SDDS_DATA_SIZE / sizeof(short) / complex_scale);
+			bytes_read = m_shortBlock.size() * sizeof(short);
+			*dataPointer = reinterpret_cast<char*>(m_shortBlock.data());
+			if (m_first_run || m_shortBlock.sriChanged()) {
+				m_sri = m_shortBlock.sri();
+				sriChanged = true;
+				if (m_shortBlock.sriChangeFlags() & bulkio::sri::MODE) {
+					LOG_ERROR(BulkIOToSDDSProcessor, "KNOWN ISSUE!! Mode was changed in the middle of a stream. "
+							"Going from Real->Complex this will cause 1 SDDS packets worth of data to have an incorrect time stamp. "
+							"Going from Complex->Real will cause a single packet to be erroneously padded with zeros.");
+				}
+			}
+		}
+		break;
+	case OCTET_STREAM:
+		complex_scale = (m_octetStream.sri().mode == 0 ? 1 : 2);
+		m_octetBlock = m_octetStream.read(SDDS_DATA_SIZE / sizeof(char) / complex_scale);
+		if (!!m_octetBlock) {
+			m_current_time = m_octetBlock.getTimestamps().front().time;
+			m_block_clock_drift = getClockDrift(m_octetBlock.getTimestamps(), SDDS_DATA_SIZE / sizeof(char) / complex_scale);
+			bytes_read = m_octetBlock.size() * sizeof(char);
+			*dataPointer = reinterpret_cast<char*>(m_octetBlock.data());
+			if (m_first_run || m_octetBlock.sriChanged()) {
+				m_sri = m_octetBlock.sri();
+				sriChanged = true;
+				if (m_octetBlock.sriChangeFlags() & bulkio::sri::MODE) {
+					LOG_ERROR(BulkIOToSDDSProcessor, "KNOWN ISSUE!! Mode was changed in the middle of a stream. "
+							"Going from Real->Complex this will cause 1 SDDS packets worth of data to have an incorrect time stamp. "
+							"Going from Complex->Real will cause a single packet to be erroneously padded with zeros.");
+				}
+			}
+		}
+		break;
+	case NOT_SET:
+		LOG_ERROR(BulkIOToSDDSProcessor, "Processor thread running but the active stream is not set");
+		break;
+	default:
+		LOG_ERROR(BulkIOToSDDSProcessor, "Processor thread running but the active stream is not set");
+		break;
+	};
 
-
+	return bytes_read;
+}
 
 
 
@@ -336,3 +411,4 @@ void BulkIOToSDDSProcessor::removeOctetStream(bulkio::InOctetStream stream) {
 		LOG_WARN(BulkIOToSDDSProcessor, "Was told to remove stream that was not already set.");
 	}
 }
+

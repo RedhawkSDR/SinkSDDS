@@ -28,33 +28,18 @@
   <struct id="sdds_settings" mode="readwrite">
     <description>SDDS Packet Settings</description>
     <simple id="sdds_settings::standard_format" mode="readwrite" name="standard_format" type="short">
-      <description>&quot;sf&quot; bit for the SDDS header.</description>
+      <description>The SF (Standard Format) field is used to identify whether or not the packet conforms to the SDDS standard. For SDDS standard packets, the SF bit shall be set to a value of 1. The SF bit shall b eset to a value of zero for non-standard packets.</description>
       <value>1</value>
       <action type="external"/>
     </simple>
     <simple id="sdds_settings::original_format" mode="readwrite" name="original_format" type="short">
-      <description>&quot;of&quot; bit for the SDDS header.</description>
+      <description>The OF (Original Format) field identifies the original format of the data transmitted. If the data was originally offset binary and has been converted to 2's complement, the OF value is set to one. Otherwise, the data is 2's complement and has not been converted and the OF value is set to zero.</description>
       <value>0</value>
       <action type="external"/>
     </simple>
     <simple id="sdds_settings::spectral_sense" mode="readwrite" name="spectral_sense" type="short">
-      <description>&quot;ss&quot; bit for the SDDS header.</description>
+      <description>The SS (Spectral Sense) field identifiees whether or not the spectral sense has been inverted from the original input. The SS value is set to one if the spectral sense has been inverted. The SS value is set to zero if the spectral sense has not been inverted.</description>
       <value>0</value>
-      <action type="external"/>
-    </simple>
-    <simple id="sdds_settings::frequency_change_rate" mode="readwrite" name="frequency_change_rate" type="double">
-      <description>df/dt for the SDDS header; this is overridden by SRI if available.</description>
-      <value>0</value>
-      <action type="external"/>
-    </simple>
-    <simple id="sdds_settings::time_tag_valid" mode="readwrite" name="time_tag_valid" type="boolean">
-      <description>Flag for the timeTagValid portion of the SDDSStreamDefinition.</description>
-      <value>true</value>
-      <action type="external"/>
-    </simple>
-    <simple id="sdds_settings::time_tag_estimation" mode="readwrite" name="time_tag_estimation" type="boolean">
-      <description>When set, this will cause every SDDS packet that is sent out to have a valid time tag.</description>
-      <value>true</value>
       <action type="external"/>
     </simple>
     <simple id="sdds_settings::user_id" mode="readwrite" name="user_id" type="string">
@@ -62,23 +47,12 @@
       <value>anonymous</value>
       <action type="external"/>
     </simple>
-    <configurationkind kindtype="property"/>
-  </struct>
-  <struct id="advanced_configuration" mode="readwrite">
-    <description>advanced configuration options</description>
-    <simple id="advanced_configuration::time_out_in_sec" mode="readwrite" name="time_out_in_sec" type="short">
-      <description>Maximum number of seconds to wait without receiving a CORBA packet to consider there was a break in transmission and to reset the SoS bit.</description>
-      <value>2</value>
-      <units>seconds</units>
-      <action type="external"/>
-    </simple>
     <simple id="advanced_configuration::endian_representation" mode="readwrite" name="endian_representation" type="long">
-      <description>Will the packet's payload be sent in BIG_ENDIAN representation or LITTLE_ENDIAN representation. Default is NETWORK_BYTE_ORDER</description>
-      <value>0</value>
+      <description>The endianness (Big or Little) of the data portion of the SDDS packet. Defaults to Network Byte Order (Big Endian)</description>
+      <value>1</value>
       <enumerations>
-        <enumeration label="NATIVE" value="0"/>
-        <enumeration label="LITTLE_ENDIAN" value="1"/>
-        <enumeration label="BIG_ENDIAN" value="2"/>
+        <enumeration label="LITTLE_ENDIAN" value="0"/>
+        <enumeration label="BIG_ENDIAN" value="1"/>
       </enumerations>
       <action type="external"/>
     </simple>

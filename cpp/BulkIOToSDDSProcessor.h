@@ -31,6 +31,7 @@ class BulkIOToSDDSProcessor {
 public:
 	BulkIOToSDDSProcessor(Resource_impl *parent);
 	virtual ~BulkIOToSDDSProcessor();
+	void setSddsSettings(sdds_settings_struct settings);
 
 	void setFloatStream(bulkio::InFloatStream stream);
 	void setShortStream(bulkio::InShortStream stream);
@@ -50,8 +51,10 @@ private:
 	bulkio::InOctetStream m_octetStream;
 	size_t getDataPointer(char **dataPointer, bool &sriChanged);
 	int sendPacket(char* sddsData, int num_bytes);
+	void setSddsTimestamp();
+	time_t getStartOfYear();
+	double getClockDrift(std::list<bulkio::SampleTimestamp> ts, size_t numSamples);
 	void initializeSDDSHeader();
-	void setSddsSettings(sdds_settings_struct settings);
 	void setSddsHeaderFromSri();
 	void _run();
 	bool m_shutdown, m_running;
@@ -71,6 +74,9 @@ private:
 	bool m_first_run;
 	uint16_t m_seq;
 	char m_zero_pad_buffer[SDDS_DATA_SIZE]; // This buffer is only used if we do a non full read off of the stream API.
+	BULKIO::PrecisionUTCTime m_current_time;
+	double m_block_clock_drift;
+	sdds_settings_struct m_user_settings;
 };
 
 #endif /* BULKIOTOSDDSPROCESSOR_H_ */

@@ -32,7 +32,9 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 
 SinkSDDS_i::~SinkSDDS_i(){}
 
-void SinkSDDS_i::constructor(){}
+void SinkSDDS_i::constructor(){
+	m_processor.setSddsSettings(sdds_settings);
+}
 
 void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError) {
 	std::stringstream errorText;

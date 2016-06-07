@@ -28,8 +28,6 @@ class SinkSDDS_base : public Component, protected ThreadedComponent
         network_settings_struct network_settings;
         /// Property: sdds_settings
         sdds_settings_struct sdds_settings;
-        /// Property: advanced_configuration
-        advanced_configuration_struct advanced_configuration;
 
         // Ports
         /// Port: dataShortIn
