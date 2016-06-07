@@ -86,6 +86,7 @@ struct sdds_settings_struct {
         spectral_sense = 0;
         user_id = "anonymous";
         endian_representation = 1;
+        time_tag_valid = true;
     };
 
     static std::string getId() {
@@ -97,6 +98,7 @@ struct sdds_settings_struct {
     short spectral_sense;
     std::string user_id;
     CORBA::Long endian_representation;
+    bool time_tag_valid;
 };
 
 inline bool operator>>= (const CORBA::Any& a, sdds_settings_struct& s) {
@@ -118,6 +120,9 @@ inline bool operator>>= (const CORBA::Any& a, sdds_settings_struct& s) {
     if (props.contains("advanced_configuration::endian_representation")) {
         if (!(props["advanced_configuration::endian_representation"] >>= s.endian_representation)) return false;
     }
+    if (props.contains("advanced_configuration::time_tag_valid")) {
+        if (!(props["advanced_configuration::time_tag_valid"] >>= s.time_tag_valid)) return false;
+    }
     return true;
 }
 
@@ -133,6 +138,8 @@ inline void operator<<= (CORBA::Any& a, const sdds_settings_struct& s) {
     props["sdds_settings::user_id"] = s.user_id;
  
     props["advanced_configuration::endian_representation"] = s.endian_representation;
+ 
+    props["advanced_configuration::time_tag_valid"] = s.time_tag_valid;
     a <<= props;
 }
 
@@ -146,6 +153,8 @@ inline bool operator== (const sdds_settings_struct& s1, const sdds_settings_stru
     if (s1.user_id!=s2.user_id)
         return false;
     if (s1.endian_representation!=s2.endian_representation)
+        return false;
+    if (s1.time_tag_valid!=s2.time_tag_valid)
         return false;
     return true;
 }

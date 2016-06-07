@@ -9,8 +9,8 @@
 
 PREPARE_LOGGING(BulkIOToSDDSProcessor)
 
-BulkIOToSDDSProcessor::BulkIOToSDDSProcessor(Resource_impl *parent):
-m_shutdown(false), m_running(false), m_processorThread(NULL), m_activeStream(NOT_SET), m_parent(parent), m_first_run(true), m_seq(0), m_block_clock_drift(0.0) {
+BulkIOToSDDSProcessor::BulkIOToSDDSProcessor(Resource_impl *parent, bulkio::OutSDDSPort * dataSddsOut):
+m_sdds_out_port(dataSddsOut), m_shutdown(false), m_running(false), m_processorThread(NULL), m_activeStream(NOT_SET), m_parent(parent), m_first_run(true), m_seq(0), m_block_clock_drift(0.0), m_vlan(0) {
 
 	m_pkt_template.msg_name = NULL;
 	m_pkt_template.msg_namelen = 0;
@@ -69,8 +69,65 @@ void BulkIOToSDDSProcessor::run() {
 		return;
 	}
 
+	callAttach();
+
 	m_processorThread = new boost::thread(boost::bind(&BulkIOToSDDSProcessor::_run, boost::ref(*this)));
 	LOG_TRACE(BulkIOToSDDSProcessor, "Leaving the Run Method");
+}
+
+void BulkIOToSDDSProcessor::callDettach() {
+	//TODO: If the component is shutting down is this going to cause issues?
+	char* id;
+	switch (m_activeStream) {
+		case FLOAT_STREAM:
+			id = CORBA::string_dup(m_floatStream.streamID().c_str());
+			break;
+		case SHORT_STREAM:
+			id = CORBA::string_dup(m_shortStream.streamID().c_str());
+			break;
+		case OCTET_STREAM:
+			id = CORBA::string_dup(m_octetStream.streamID().c_str());
+			break;
+		default:
+			// There are multiple places were detach can be called during the shutdown process so just return if we've already cleared out the stream.
+			// TODO: Probably should unify where the callDetach stuff is invoked so that there isn't multiple calls to it during shutDown.
+			return;
+			break;
+		}
+
+		m_sdds_out_port->detach(id);
+}
+
+void BulkIOToSDDSProcessor::callAttach() {
+	BULKIO::SDDSStreamDefinition sdef;
+	switch (m_activeStream) {
+	case FLOAT_STREAM:
+		sdef.id = CORBA::string_dup(m_floatStream.streamID().c_str());
+		sdef.dataFormat = (m_floatStream.sri().mode == 1) ? BULKIO::SDDS_CF : BULKIO::SDDS_SF;
+		sdef.sampleRate = 1.0/m_floatStream.sri().xdelta;
+		break;
+	case SHORT_STREAM:
+		sdef.id = CORBA::string_dup(m_shortStream.streamID().c_str());
+		sdef.dataFormat = (m_shortStream.sri().mode == 1) ? BULKIO::SDDS_CI : BULKIO::SDDS_SI;
+		sdef.sampleRate = 1.0/m_shortStream.sri().xdelta;
+		break;
+	case OCTET_STREAM:
+		sdef.id = CORBA::string_dup(m_octetStream.streamID().c_str());
+		sdef.dataFormat = (m_octetStream.sri().mode == 1) ? BULKIO::SDDS_CB : BULKIO::SDDS_SB;
+		sdef.sampleRate = 1.0/m_octetStream.sri().xdelta;
+		break;
+	default:
+		LOG_ERROR(BulkIOToSDDSProcessor, "Tried calling attach when no stream is currently set");
+		return;
+		break;
+	}
+
+	sdef.timeTagValid = m_user_settings.time_tag_valid;
+	sdef.multicastAddress = CORBA::string_dup(inet_ntoa(m_connection.addr.sin_addr));
+	sdef.vlan = m_vlan;
+	sdef.port = ntohs(m_connection.addr.sin_port);
+
+	m_sdds_out_port->attach(sdef, m_user_settings.user_id.c_str());
 }
 
 void BulkIOToSDDSProcessor::setSddsHeaderFromSri() {
@@ -94,13 +151,13 @@ void BulkIOToSDDSProcessor::_run() {
 		bytes_read = getDataPointer(&sddsDataBlock, sriChanged);
 		LOG_TRACE(BulkIOToSDDSProcessor, "Received " << bytes_read << " bytes from bulkIO");
 		if (sriChanged) {
-//			pushSri(); // TODO:
+			m_sdds_out_port->pushSRI(m_sri, m_current_time);
 			setSddsHeaderFromSri();
 		}
 
-
 		if (not bytes_read) {
 			//TODO: LOG and send an EOS
+			callDettach();
 			m_activeStream = NOT_SET;
 			m_shutdown = true;
 			continue;
@@ -108,6 +165,7 @@ void BulkIOToSDDSProcessor::_run() {
 
 		if (sendPacket(sddsDataBlock, bytes_read) < 0) {
 			LOG_ERROR(BulkIOToSDDSProcessor, "Failed to push packet over socket, stream will be closed.");
+			callDettach();
 			m_activeStream = NOT_SET;
 			m_shutdown = true;
 			continue;
@@ -185,14 +243,8 @@ time_t BulkIOToSDDSProcessor::getStartOfYear(){
 	return mktime(systemtime_struct);
 }
 
-/**
- * Non-blocking and sets the shutdown flag on the processing thread. This will NOT
- * join the thread. It is likely that the thread is stuck in the port
- * read call. A user should call shutDown, then stop the parent componet
- * which will free the port and break the lock so that the thread can continue
- * then the user should call joinThread.
- */
 void BulkIOToSDDSProcessor::shutdown() {
+	callDettach();
 	m_shutdown = true;
 }
 
@@ -206,8 +258,9 @@ void BulkIOToSDDSProcessor::join() {
 	}
 }
 
-void BulkIOToSDDSProcessor::setConnection(connection_t connection) {
+void BulkIOToSDDSProcessor::setConnection(connection_t connection, uint16_t vlan) {
 	m_connection = connection;
+	m_vlan = vlan;
 	// Not sure why but the msg_name and msg_namelen must be set. Perhaps it's a UDP thing. I thought they were optional
 	m_pkt_template.msg_name = &m_connection.addr;
 	m_pkt_template.msg_namelen = sizeof(m_connection.addr);

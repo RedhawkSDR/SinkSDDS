@@ -56,6 +56,10 @@
       </enumerations>
       <action type="external"/>
     </simple>
+    <simple id="advanced_configuration::time_tag_valid" name="time_tag_valid" type="boolean">
+      <description>Used only in the attach call. The attach call is made prior to the bulkIO TimeStamp being available so the true BULKIO::TCS_VALID flag cannot be checked. This is only used during the call to attach.</description>
+      <value>true</value>
+    </simple>
     <configurationkind kindtype="property"/>
   </struct>
 </properties>

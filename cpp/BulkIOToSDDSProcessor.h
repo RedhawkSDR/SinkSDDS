@@ -29,7 +29,7 @@ enum ActiveStream {NOT_SET, FLOAT_STREAM, SHORT_STREAM, OCTET_STREAM};
 class BulkIOToSDDSProcessor {
 	ENABLE_LOGGING
 public:
-	BulkIOToSDDSProcessor(Resource_impl *parent);
+	BulkIOToSDDSProcessor(Resource_impl *parent, bulkio::OutSDDSPort * dataSddsOut);
 	virtual ~BulkIOToSDDSProcessor();
 	void setSddsSettings(sdds_settings_struct settings);
 
@@ -40,8 +40,10 @@ public:
 	void removeFloatStream(bulkio::InFloatStream stream);
 	void removeShortStream(bulkio::InShortStream stream);
 	void removeOctetStream(bulkio::InOctetStream stream);
+	void callAttach();
+	void callDettach();
 
-	void setConnection(connection_t connection);
+	void setConnection(connection_t connection, uint16_t vlan);
 	void run();
 	void shutdown();
 	void join();
@@ -49,6 +51,7 @@ private:
 	bulkio::InFloatStream m_floatStream;
 	bulkio::InShortStream m_shortStream;
 	bulkio::InOctetStream m_octetStream;
+	bulkio::OutSDDSPort *m_sdds_out_port;
 	size_t getDataPointer(char **dataPointer, bool &sriChanged);
 	int sendPacket(char* sddsData, int num_bytes);
 	void setSddsTimestamp();
@@ -77,6 +80,7 @@ private:
 	BULKIO::PrecisionUTCTime m_current_time;
 	double m_block_clock_drift;
 	sdds_settings_struct m_user_settings;
+	uint16_t m_vlan;
 };
 
 #endif /* BULKIOTOSDDSPROCESSOR_H_ */

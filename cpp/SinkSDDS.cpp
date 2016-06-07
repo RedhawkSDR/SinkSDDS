@@ -16,7 +16,7 @@ PREPARE_LOGGING(SinkSDDS_i)
 //TODO: deal with the attach call, see if there are any callbacks available and have it call only if started.
 SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
     SinkSDDS_base(uuid, label),
-	m_processor(this)
+	m_processor(this, dataSddsOut)
 {
 	dataFloatIn->addStreamListener(&m_processor, &BulkIOToSDDSProcessor::setFloatStream);
 	dataFloatIn->removeStreamListener(&m_processor, &BulkIOToSDDSProcessor::removeFloatStream);
@@ -26,6 +26,11 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 
 	dataOctetIn->addStreamListener(&m_processor, &BulkIOToSDDSProcessor::setOctetStream);
 	dataOctetIn->removeStreamListener(&m_processor, &BulkIOToSDDSProcessor::removeOctetStream);
+
+	// TODO: Since the data is out of band when is the proper time to call attach? If you do it on connection a user may not have set the properties
+	// if you do it on start the downstream receiver may not have time to bind to the port fast enough.
+	// TODO: I should set a connection listener for new connections made during start
+//	dataSddsOut->setNewConnectListener(this);
 
 	memset(&m_connection, 0, sizeof(m_connection));
 }
@@ -51,7 +56,7 @@ void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError
 		throw CF::Resource::StartError(CF::CF_EINVAL, errorText.str().c_str());
 	}
 
-	m_processor.setConnection(m_connection);
+	m_processor.setConnection(m_connection, network_settings.vlan);
 	m_processor.run();
 
 	// Call the parent start
@@ -60,6 +65,7 @@ void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError
 
 void SinkSDDS_i::stop () throw (CF::Resource::StopError, CORBA::SystemException) {
 	m_processor.shutdown(); // Tells the read thread to shutdown on next pass.
+	// TODO: Call detach!
 	SinkSDDS_base::stop(); // Opens the port up so that the stream object will return and free up the read lock.
 	m_processor.join(); // Joins the processing thread
 	if (m_connection.sock) {
