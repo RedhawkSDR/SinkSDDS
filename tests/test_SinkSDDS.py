@@ -157,7 +157,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         self.assertEqual(len(recv), 1080)
         
         # Validate data is correct
-        self.assertEqual(fakeData, list(struct.unpack('512H', recv[-1024:])))
+        self.assertEqual(fakeData, list(struct.unpack('!512H', recv[-1024:])))
 
     def dataFloatInTest(self, is_complex):
         self.floatConnect()
@@ -171,7 +171,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         self.assertEqual(len(recv), 1080)
         
         # Validate data is correct
-        self.assertEqual(fakeData, list(struct.unpack('256f', recv[-1024:])))
+        self.assertEqual(fakeData, list(struct.unpack('!256f', recv[-1024:])))
         
     def sendPacketGetPacket(self, data_to_send, sample_rate=1.0, is_complex=False, socket_read_size=1080, eos=False):
         self.sendPacket(data_to_send, sample_rate, is_complex, eos)

@@ -258,6 +258,12 @@ size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChange
 
 			bytes_read = m_floatBlock.size() * sizeof(float);
 			*dataPointer = reinterpret_cast<char*>(m_floatBlock.data());
+			if (m_user_settings.endian_representation) { // 1 for Big 0 for Little, we assume we're running on a little endian so we byteswap
+				uint32_t *buf = reinterpret_cast<uint32_t*>(*dataPointer);
+				for (size_t i = 0; i < m_floatBlock.size(); ++i) {
+					buf[i] = __builtin_bswap32(buf[i]);
+				}
+			}
 			if (m_first_run || m_floatBlock.sriChanged()) {
 				m_sri = m_floatBlock.sri();
 				sriChanged = true;
@@ -277,6 +283,9 @@ size_t BulkIOToSDDSProcessor::getDataPointer(char **dataPointer, bool &sriChange
 			m_block_clock_drift = getClockDrift(m_shortBlock.getTimestamps(), SDDS_DATA_SIZE / sizeof(short) / complex_scale);
 			bytes_read = m_shortBlock.size() * sizeof(short);
 			*dataPointer = reinterpret_cast<char*>(m_shortBlock.data());
+			if (m_user_settings.endian_representation) {
+				swab(*dataPointer, *dataPointer, bytes_read);
+			}
 			if (m_first_run || m_shortBlock.sriChanged()) {
 				m_sri = m_shortBlock.sri();
 				sriChanged = true;
