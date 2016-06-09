@@ -47,7 +47,7 @@
       <value>anonymous</value>
       <action type="external"/>
     </simple>
-    <simple id="advanced_configuration::endian_representation" mode="readwrite" name="endian_representation" type="long">
+    <simple id="sdds_settings::endian_representation" mode="readwrite" name="endian_representation" type="long">
       <description>The endianness (Big or Little) of the data portion of the SDDS packet. Defaults to Network Byte Order (Big Endian)</description>
       <value>1</value>
       <enumerations>
@@ -56,7 +56,7 @@
       </enumerations>
       <action type="external"/>
     </simple>
-    <simple id="advanced_configuration::time_tag_valid" name="time_tag_valid" type="boolean">
+    <simple id="sdds_settings::time_tag_valid" name="time_tag_valid" type="boolean">
       <description>Used only in the attach call. The attach call is made prior to the bulkIO TimeStamp being available so the true BULKIO::TCS_VALID flag cannot be checked. This is only used during the call to attach.</description>
       <value>true</value>
     </simple>

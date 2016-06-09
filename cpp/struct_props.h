@@ -117,11 +117,11 @@ inline bool operator>>= (const CORBA::Any& a, sdds_settings_struct& s) {
     if (props.contains("sdds_settings::user_id")) {
         if (!(props["sdds_settings::user_id"] >>= s.user_id)) return false;
     }
-    if (props.contains("advanced_configuration::endian_representation")) {
-        if (!(props["advanced_configuration::endian_representation"] >>= s.endian_representation)) return false;
+    if (props.contains("sdds_settings::endian_representation")) {
+        if (!(props["sdds_settings::endian_representation"] >>= s.endian_representation)) return false;
     }
-    if (props.contains("advanced_configuration::time_tag_valid")) {
-        if (!(props["advanced_configuration::time_tag_valid"] >>= s.time_tag_valid)) return false;
+    if (props.contains("sdds_settings::time_tag_valid")) {
+        if (!(props["sdds_settings::time_tag_valid"] >>= s.time_tag_valid)) return false;
     }
     return true;
 }
@@ -137,9 +137,9 @@ inline void operator<<= (CORBA::Any& a, const sdds_settings_struct& s) {
  
     props["sdds_settings::user_id"] = s.user_id;
  
-    props["advanced_configuration::endian_representation"] = s.endian_representation;
+    props["sdds_settings::endian_representation"] = s.endian_representation;
  
-    props["advanced_configuration::time_tag_valid"] = s.time_tag_valid;
+    props["sdds_settings::time_tag_valid"] = s.time_tag_valid;
     a <<= props;
 }
 
