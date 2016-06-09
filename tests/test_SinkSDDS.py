@@ -8,10 +8,27 @@ import socket
 import struct
 import Sdds
 import binascii
+import sys
 
 DEBUG_LEVEL = 0
 UNICAST_PORT = 1234
 UNICAST_IP = '127.0.0.1'
+
+class SddsAttachDetachCB():
+    attaches = []
+    detaches = []
+    
+    def attach_cb(self, streamDef, user_id):
+        print 'Received attach from: %s' % user_id
+        self.attaches.append(streamDef)
+    def detach_cb(self, attachId):
+        print 'Received detach of: %s' % attachId
+        self.detaches.append(attachId)
+    def get_attach(self):
+        return self.attaches
+    def get_detach(self):
+        return self.detaches
+        
 
 # TODO: I changed the inheritance from RHTest to ScaComponentTestCase, put back after figuring out how to deal with
 # the new type
@@ -29,11 +46,10 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 # TODO: Add/Remove stream.
 # TODO: Endianess
 # TODO: Time code valid checks
-
 # TODO: Track down issue where RH cannot release a waveform, I believe it has to do with releasing the component when a stream is running
 # TODO: Write unit test for timing checks
 # TODO: Create property for overriting SRI
-# TODO: Templatized class
+
 
     # This unit test takes FOREVER (going through all the packets) how can we speed this thing up?
 #     def testSoS(self):
@@ -60,6 +76,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 #         self.assertTrue(h.SoS == 0, "SoS bit should not be set")
             
 
+# TODO
     def testTimeDrift(self):
         self.octetConnect()
         sb.start()
@@ -68,8 +85,75 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
             self.sendPacket(fakeData, 1.0, True, eos=False)
         
         time.sleep(1)
-            
+
+# TODO: The attach detach test do not pass, is it a bug with me or them?
+    def testMultipleStreams(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        ad_cb = SddsAttachDetachCB();
+        sink.registerAttachCallback(ad_cb.attach_cb)
+        sink.registerDetachCallback(ad_cb.detach_cb)
+        self.comp.connect(sink)
+        sb.start()
         
+        goodData1 = 1024*[1];
+        badData = 1024*[2];
+        goodData2 = 1024*[3];
+
+        # No data pushed, no attaches or detaches        
+        self.assertEqual(len(ad_cb.get_attach()), 0, "Should not have received any attaches")
+#         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
+        
+        # Push one good packet and confirm it was received
+        self.source.push(goodData1, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData1, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        # Since we pushed, we should get an attach, no detach
+        self.assertEqual(len(ad_cb.get_attach()), 1, "Should have received 1 attach total")
+#         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
+        
+        # Push a new stream, it should get ignored, confirm we receive no data and still have only a single attach
+        self.source.push(badData, EOS=False, streamID="Bad Stream", sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(len(self.getPacket()), 0, "Should not have passed on new stream, stream already active")
+        self.assertEqual(len(ad_cb.get_attach()), 1, "Should have received 1 attach total")
+#         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
+
+        # Push an EOS which should cause a detach        
+        self.source.push(goodData1, EOS=True, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData1, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        time.sleep(2)
+        self.assertEqual(len(ad_cb.get_attach()), 1, "Should have received 1 attach total")
+#         self.assertEqual(len(ad_cb.get_detach()), 1, "Should have received 1 detach total")
+
+        # Send a new stream, which means a new attach                
+        self.source.push(goodData2, EOS=False, streamID="New Stream", sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData2, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        self.assertEqual(len(ad_cb.get_attach()), 2, "Should have received 2 attach total")
+#         self.assertEqual(len(ad_cb.get_detach()), 1, "Should have received 1 detach total")
+        
+        # Tear stuff down, confirm we get the final detach
+        sb.release()
+        self.assertEqual(len(ad_cb.get_attach()), 2, "Should have received 2 attach total")
+        self.assertEqual(len(ad_cb.get_detach()), 2, "Should have received 2 detach total")
+        
+    def testReleaseWhileStreaming(self):
+        problem=False
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        self.comp.connect(sink)
+        sb.start()
+        fakeData = 1024*[10];
+        self.source.push(1000*fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=True)
+        time.sleep(1)
+        try:
+            sb.release()
+        except:
+            e = sys.exc_info()[0]
+            print(type(e.message))
+            print("Unexpected error: %s", e)
+            problem=True
+        
+        self.assertTrue(not problem, "exception was raised while releasing the component")
+            
         
     def testCx(self):
         self.octetConnect()

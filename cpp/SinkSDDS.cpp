@@ -78,9 +78,9 @@ void SinkSDDS_i::stop () throw (CF::Resource::StopError, CORBA::SystemException)
 	m_shortproc.shutdown();
 	m_octetproc.shutdown();
 
-	m_floatproc.callDettach();
-	m_shortproc.callDettach();
-	m_octetproc.callDettach();
+	m_floatproc.callDetach();
+	m_shortproc.callDetach();
+	m_octetproc.callDetach();
 
 	SinkSDDS_base::stop(); // Opens the port up so that the stream object will return and free up the read lock.
 

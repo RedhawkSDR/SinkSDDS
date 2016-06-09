@@ -83,12 +83,15 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::run() {
 }
 
 template <class STREAM_TYPE>
-void BulkIOToSDDSProcessor<STREAM_TYPE>::callDettach() {
+void BulkIOToSDDSProcessor<STREAM_TYPE>::callDetach() {
 	//TODO: If the component is shutting down is this going to cause issues?
 	// There are multiple places were detach can be called during the shutdown process so just return if we've already cleared out the stream.
 	// TODO: Probably should unify where the callDetach stuff is invoked so that there isn't multiple calls to it during shutDown.
 	if (m_active_stream) {
+		LOG_TRACE(BulkIOToSDDSProcessor, "Calling detach on current stream: " << m_stream.streamID());
 		m_sdds_out_port->detach(CORBA::string_dup(m_stream.streamID().c_str()));
+	} else {
+		LOG_TRACE(BulkIOToSDDSProcessor, "Was told to call detach but also told there is no active stream!");
 	}
 }
 
@@ -134,7 +137,8 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setConnection(connection_t connection, 
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::shutdown() {
-	callDettach();
+	callDetach();
+	m_active_stream = false;
 	m_shutdown = true;
 }
 
@@ -187,16 +191,13 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 		}
 
 		if (not bytes_read) {
-			//TODO: LOG and send an EOS
-			callDettach();
-			m_shutdown = true;
+			shutdown();
 			continue;
 		}
 
 		if (sendPacket(sddsDataBlock, bytes_read) < 0) {
 			LOG_ERROR(BulkIOToSDDSProcessor,"Failed to push packet over socket, stream will be closed.");
-			callDettach();
-			m_shutdown = true;
+			shutdown();
 			continue;
 		}
 
@@ -217,7 +218,6 @@ size_t BulkIOToSDDSProcessor<STREAM_TYPE>::getDataPointer(char **dataPointer, bo
 	size_t complex_scale = (m_stream.sri().mode == 0 ? 1 : 2);
 
 	m_block = m_stream.read(SDDS_DATA_SIZE / sizeof(NATIVE_TYPE) / complex_scale);
-
 
 	if (!!m_block) {  //TODO: Document bang bang
 		m_current_time = m_block.getTimestamps().front().time;

@@ -28,7 +28,7 @@ public:
 	void join();
 	void setSddsSettings(sdds_settings_struct settings);
 	void run();
-	void callDettach();
+	void callDetach();
 	void callAttach();
 	void setConnection(connection_t connection, uint16_t vlan);
 	void shutdown();
@@ -37,19 +37,12 @@ public:
 
 private:
 	void _run();
-
 	size_t getDataPointer(char **dataPointer, bool &sriChanged);
-
 	int sendPacket(char* dataBlock, int num_bytes);
-
 	void initializeSDDSHeader();
-
 	void setSddsHeaderFromSri();
-
 	void setSddsTimestamp();
-
 	time_t getStartOfYear();
-
 	double getClockDrift(std::list<bulkio::SampleTimestamp> ts, size_t numSamples);
 
 	Resource_impl *m_parent;
@@ -59,7 +52,6 @@ private:
 	boost::thread *m_processorThread;
 	bool m_shutdown, m_running, m_active_stream;
 	uint16_t m_vlan;
-
 	STREAM_TYPE m_stream;
 	BLOCK_TYPE m_block;
 	BULKIO::PrecisionUTCTime m_current_time;
