@@ -14,6 +14,10 @@ DEBUG_LEVEL = 0
 UNICAST_PORT = 1234
 UNICAST_IP = '127.0.0.1'
 
+FLOAT_BPS = [16, 8, 4, 2, 1]
+SHORT_BPS = [16,  0, 0, 0, 0]
+OCTET_BPS = [0,  8, 0, 0, 0]
+
 class SddsAttachDetachCB():
     attaches = []
     detaches = []
@@ -40,10 +44,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 # TODO: Standard Format check
 # TODO: Original Format check
 # TODO: Spectral Sense check
-# TODO: Attach tests
 # TODO: df/dt drift test
-# TODO: Multiple streams added
-# TODO: Add/Remove stream.
 # TODO: Endianess
 # TODO: Time code valid checks
 # TODO: Track down issue where RH cannot release a waveform, I believe it has to do with releasing the component when a stream is running
@@ -232,6 +233,10 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         
         # Validate data is correct
         self.assertEqual(fakeData, list(struct.unpack('1024B', recv[-1024:])))
+        
+        # Validate bps 
+        sdds_header = self.getHeader(recv)
+        self.assertEqual(sdds_header.bps, OCTET_BPS, "SDDS bps does not match expected.")
 
     def dataShortInTest(self, is_complex):
         self.shortConnect()
@@ -246,6 +251,10 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         
         # Validate data is correct
         self.assertEqual(fakeData, list(struct.unpack('!512H', recv[-1024:])))
+        
+        # Validate bps 
+        sdds_header = self.getHeader(recv)
+        self.assertEqual(sdds_header.bps, SHORT_BPS, "SDDS bps does not match expected.")
 
     def dataFloatInTest(self, is_complex):
         self.floatConnect()
@@ -260,6 +269,10 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         
         # Validate data is correct
         self.assertEqual(fakeData, list(struct.unpack('!256f', recv[-1024:])))
+        
+        # Validate bps 
+        sdds_header = self.getHeader(recv)
+        self.assertEqual(sdds_header.bps, FLOAT_BPS, "SDDS bps does not match expected.")
         
     def sendPacketGetPacket(self, data_to_send, sample_rate=1.0, is_complex=False, socket_read_size=1080, eos=False):
         self.sendPacket(data_to_send, sample_rate, is_complex, eos)

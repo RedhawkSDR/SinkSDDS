@@ -153,8 +153,7 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setStream(STREAM_TYPE stream) {
 
 	m_stream = stream;
 	m_active_stream = true;
-	//TODO: Add cast to get rid of the warning
-	m_sdds_template.bps = (sizeof(NATIVE_TYPE) == sizeof(float)) ? (8*sizeof(NATIVE_TYPE)) : 31;
+	m_sdds_template.bps = (sizeof(NATIVE_TYPE) == sizeof(float)) ? (31) : 8*sizeof(NATIVE_TYPE);
 	if (m_parent->started()) { run(); }
 }
 
