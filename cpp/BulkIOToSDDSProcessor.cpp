@@ -151,6 +151,7 @@ void BulkIOToSDDSProcessor::_run() {
 		bytes_read = getDataPointer(&sddsDataBlock, sriChanged);
 		LOG_TRACE(BulkIOToSDDSProcessor, "Received " << bytes_read << " bytes from bulkIO");
 		if (sriChanged) {
+			LOG_INFO(BulkIOToSDDSProcessor, "Stream SRI has changed, updating SDDS header.");
 			m_sdds_out_port->pushSRI(m_sri, m_current_time);
 			setSddsHeaderFromSri();
 		}
@@ -254,7 +255,7 @@ void BulkIOToSDDSProcessor::join() {
 		delete(m_processorThread);
 		m_processorThread = NULL;
 	} else {
-		LOG_WARN(BulkIOToSDDSProcessor, "Join called but the thread object is null.");
+		LOG_DEBUG(BulkIOToSDDSProcessor, "Join called but the thread object is null.");
 	}
 }
 

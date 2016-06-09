@@ -12,7 +12,7 @@
 
 PREPARE_LOGGING(SinkSDDS_i)
 
-//TODO: Created property that allows the user to optionally disable the SRI pushes out the attach port.
+//TODO: Create property that allows the user to optionally disable the SRI pushes out the attach port.
 //TODO: deal with the attach call, see if there are any callbacks available and have it call only if started.
 SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
     SinkSDDS_base(uuid, label),
@@ -27,8 +27,6 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 	dataOctetIn->addStreamListener(&m_processor, &BulkIOToSDDSProcessor::setOctetStream);
 	dataOctetIn->removeStreamListener(&m_processor, &BulkIOToSDDSProcessor::removeOctetStream);
 
-	// TODO: Since the data is out of band when is the proper time to call attach? If you do it on connection a user may not have set the properties
-	// if you do it on start the downstream receiver may not have time to bind to the port fast enough.
 	// TODO: I should set a connection listener for new connections made during start
 //	dataSddsOut->setNewConnectListener(this);
 
@@ -65,7 +63,7 @@ void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError
 
 void SinkSDDS_i::stop () throw (CF::Resource::StopError, CORBA::SystemException) {
 	m_processor.shutdown(); // Tells the read thread to shutdown on next pass.
-	// TODO: Call detach!
+	m_processor.callDettach();
 	SinkSDDS_base::stop(); // Opens the port up so that the stream object will return and free up the read lock.
 	m_processor.join(); // Joins the processing thread
 	if (m_connection.sock) {
