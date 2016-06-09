@@ -6,6 +6,7 @@
 #include <netinet/ip.h>
 #include "socketUtils/multicast.h"
 #include "socketUtils/unicast.h"
+#include "BulkIOToSDDSProcessor.h"
 
 class SinkSDDS_i : public SinkSDDS_base
 {
@@ -19,9 +20,14 @@ class SinkSDDS_i : public SinkSDDS_base
         void stop () throw (CF::Resource::StopError, CORBA::SystemException);
 
     private:
-        BulkIOToSDDSProcessor m_processor;
         int setupSocket();
         connection_t m_connection;
+
+        BulkIOToSDDSProcessor<bulkio::InShortStream> m_shortproc;
+        BulkIOToSDDSProcessor<bulkio::InFloatStream> m_floatproc;
+        BulkIOToSDDSProcessor<bulkio::InOctetStream> m_octetproc;
+
+
 };
 
 #endif // SINKSDDS_I_IMPL_H

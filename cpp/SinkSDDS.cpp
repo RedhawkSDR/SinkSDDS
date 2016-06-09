@@ -14,18 +14,21 @@ PREPARE_LOGGING(SinkSDDS_i)
 
 //TODO: Create property that allows the user to optionally disable the SRI pushes out the attach port.
 //TODO: deal with the attach call, see if there are any callbacks available and have it call only if started.
+//TODO: Try and figure out a better way than calling each method on each processor
 SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
     SinkSDDS_base(uuid, label),
-	m_processor(this, dataSddsOut)
+	m_shortproc(this, dataSddsOut),
+	m_floatproc(this, dataSddsOut),
+	m_octetproc(this, dataSddsOut)
 {
-	dataFloatIn->addStreamListener(&m_processor, &BulkIOToSDDSProcessor::setFloatStream);
-	dataFloatIn->removeStreamListener(&m_processor, &BulkIOToSDDSProcessor::removeFloatStream);
+	dataFloatIn->addStreamListener(&m_floatproc, &BulkIOToSDDSProcessor<bulkio::InFloatStream>::setStream);
+	dataFloatIn->removeStreamListener(&m_floatproc, &BulkIOToSDDSProcessor<bulkio::InFloatStream>::removeStream);
 
-	dataShortIn->addStreamListener(&m_processor, &BulkIOToSDDSProcessor::setShortStream);
-	dataShortIn->removeStreamListener(&m_processor, &BulkIOToSDDSProcessor::removeShortStream);
+	dataShortIn->addStreamListener(&m_shortproc, &BulkIOToSDDSProcessor<bulkio::InShortStream>::setStream);
+	dataShortIn->removeStreamListener(&m_shortproc, &BulkIOToSDDSProcessor<bulkio::InShortStream>::removeStream);
 
-	dataOctetIn->addStreamListener(&m_processor, &BulkIOToSDDSProcessor::setOctetStream);
-	dataOctetIn->removeStreamListener(&m_processor, &BulkIOToSDDSProcessor::removeOctetStream);
+	dataOctetIn->addStreamListener(&m_octetproc, &BulkIOToSDDSProcessor<bulkio::InOctetStream>::setStream);
+	dataOctetIn->removeStreamListener(&m_octetproc, &BulkIOToSDDSProcessor<bulkio::InOctetStream>::removeStream);
 
 	// TODO: I should set a connection listener for new connections made during start
 //	dataSddsOut->setNewConnectListener(this);
@@ -36,7 +39,9 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 SinkSDDS_i::~SinkSDDS_i(){}
 
 void SinkSDDS_i::constructor(){
-	m_processor.setSddsSettings(sdds_settings);
+	m_floatproc.setSddsSettings(sdds_settings);
+	m_shortproc.setSddsSettings(sdds_settings);
+	m_octetproc.setSddsSettings(sdds_settings);
 }
 
 void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError) {
@@ -54,22 +59,41 @@ void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError
 		throw CF::Resource::StartError(CF::CF_EINVAL, errorText.str().c_str());
 	}
 
-	m_processor.setConnection(m_connection, network_settings.vlan);
-	m_processor.run();
+	m_octetproc.setConnection(m_connection, network_settings.vlan);
+	m_octetproc.run();
+
+	m_shortproc.setConnection(m_connection, network_settings.vlan);
+	m_shortproc.run();
+
+	m_floatproc.setConnection(m_connection, network_settings.vlan);
+	m_floatproc.run();
 
 	// Call the parent start
 	SinkSDDS_base::start();
 }
 
 void SinkSDDS_i::stop () throw (CF::Resource::StopError, CORBA::SystemException) {
-	m_processor.shutdown(); // Tells the read thread to shutdown on next pass.
-	m_processor.callDettach();
+	LOG_TRACE(SinkSDDS_i, "Entering stop method");
+	m_floatproc.shutdown();
+	m_shortproc.shutdown();
+	m_octetproc.shutdown();
+
+	m_floatproc.callDettach();
+	m_shortproc.callDettach();
+	m_octetproc.callDettach();
+
 	SinkSDDS_base::stop(); // Opens the port up so that the stream object will return and free up the read lock.
-	m_processor.join(); // Joins the processing thread
+
+	m_floatproc.join();
+	m_shortproc.join();
+	m_octetproc.join();
+
 	if (m_connection.sock) {
 		close(m_connection.sock);
 		memset(&m_connection, 0, sizeof(m_connection));
 	}
+
+	LOG_TRACE(SinkSDDS_i, "Exiting stop method");
 }
 
 int SinkSDDS_i::serviceFunction()

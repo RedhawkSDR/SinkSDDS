@@ -9,7 +9,7 @@ import struct
 import Sdds
 import binascii
 
-DEBUG_LEVEL = 3
+DEBUG_LEVEL = 0
 UNICAST_PORT = 1234
 UNICAST_IP = '127.0.0.1'
 
@@ -30,6 +30,10 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 # TODO: Endianess
 # TODO: Time code valid checks
 
+# TODO: Track down issue where RH cannot release a waveform, I believe it has to do with releasing the component when a stream is running
+# TODO: Write unit test for timing checks
+# TODO: Create property for overriting SRI
+# TODO: Templatized class
 
     # This unit test takes FOREVER (going through all the packets) how can we speed this thing up?
 #     def testSoS(self):
