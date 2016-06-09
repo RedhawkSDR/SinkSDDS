@@ -16,6 +16,8 @@
 
 template <class STREAM_TYPE>
 class BulkIOToSDDSProcessor {
+	ENABLE_LOGGING
+
 	typedef typename STREAM_TYPE::DataBlockType BLOCK_TYPE;
 	typedef typename STREAM_TYPE::NativeType NATIVE_TYPE;
 

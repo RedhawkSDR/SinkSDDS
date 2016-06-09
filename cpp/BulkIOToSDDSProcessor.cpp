@@ -1,6 +1,9 @@
 #include "BulkIOToSDDSProcessor.h"
 
 template <class STREAM_TYPE>
+PREPARE_LOGGING(BulkIOToSDDSProcessor<STREAM_TYPE>)
+
+template <class STREAM_TYPE>
 BulkIOToSDDSProcessor<STREAM_TYPE>::BulkIOToSDDSProcessor(Resource_impl *parent, bulkio::OutSDDSPort * dataSddsOut):
 m_parent(parent), m_sdds_out_port(dataSddsOut), m_first_run(true), m_block_clock_drift(0.0), m_processorThread(NULL), m_shutdown(false), m_running(false), m_active_stream(false),  m_vlan(0), m_seq(0) {
 
@@ -43,7 +46,7 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::join() {
 		delete(m_processorThread);
 		m_processorThread = NULL;
 	} else {
-		RH_NL_DEBUG("BulkIOToSDDSProcessor", "Join called but the thread object is null.");
+		LOG_DEBUG(BulkIOToSDDSProcessor,"Join called but the thread object is null.");
 	}
 }
 
@@ -58,10 +61,10 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsSettings(sdds_settings_struct se
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::run() {
-	RH_NL_TRACE("BulkIOToSDDSProcessor", "Entering the Run Method");
+	LOG_TRACE(BulkIOToSDDSProcessor,"Entering the Run Method");
 	if (m_processorThread) {
 		if (m_running) {
-			RH_NL_ERROR("BulkIOToSDDSProcessor", "The BulkIO To SDDS Processor is already running, cannot start a new stream without first receiving an EOS!");
+			LOG_ERROR(BulkIOToSDDSProcessor,"The BulkIO To SDDS Processor is already running, cannot start a new stream without first receiving an EOS!");
 			//TODO: Exception!
 			return;
 		} else {
@@ -76,7 +79,7 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::run() {
 	callAttach();
 
 	m_processorThread = new boost::thread(boost::bind(&BulkIOToSDDSProcessor<STREAM_TYPE>::_run, boost::ref(*this)));
-	RH_NL_TRACE("BulkIOToSDDSProcessor", "Leaving the Run Method");
+	LOG_TRACE(BulkIOToSDDSProcessor,"Leaving the Run Method");
 }
 
 template <class STREAM_TYPE>
@@ -106,7 +109,7 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::callAttach() {
 					sdef.dataFormat = (m_stream.sri().mode == 1) ? BULKIO::SDDS_CF : BULKIO::SDDS_SF;
 	break;
 	default:
-		RH_NL_ERROR("BulkIOToSDDSProcessor", "Native type size is not what we would expect.");
+		LOG_ERROR(BulkIOToSDDSProcessor,"Native type size is not what we would expect.");
 		break;
 
 	}
@@ -137,10 +140,10 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::shutdown() {
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setStream(STREAM_TYPE stream) {
-	RH_NL_INFO("BulkIOToSDDSProcessor", "Received new stream: " << stream.streamID());
+	LOG_INFO(BulkIOToSDDSProcessor,"Received new stream: " << stream.streamID());
 
 	if (m_active_stream) {
-		RH_NL_ERROR("BulkIOToSDDSProcessor", "There is already an active stream named: " << m_stream.streamID() << ", cannot set new stream: " << stream.streamID());
+		LOG_ERROR(BulkIOToSDDSProcessor,"There is already an active stream named: " << m_stream.streamID() << ", cannot set new stream: " << stream.streamID());
 		return;
 	}
 
@@ -153,7 +156,7 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setStream(STREAM_TYPE stream) {
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::removeStream(STREAM_TYPE stream) {
-	RH_NL_INFO("BulkIOToSDDSProcessor", "Removing stream: " << stream.streamID());
+	LOG_INFO(BulkIOToSDDSProcessor,"Removing stream: " << stream.streamID());
 	if (m_active_stream && m_stream.streamID() == stream.streamID()) {
 		if (m_running) {
 			shutdown();
@@ -162,13 +165,13 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::removeStream(STREAM_TYPE stream) {
 
 		m_active_stream = false;
 	} else {
-		RH_NL_WARN("BulkIOToSDDSProcessor", "Was told to remove stream that was not already set.");
+		LOG_WARN(BulkIOToSDDSProcessor,"Was told to remove stream that was not already set.");
 	}
 }
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
-	RH_NL_TRACE("BulkIOToSDDSProcessor", "Entering the _run Method");
+	LOG_TRACE(BulkIOToSDDSProcessor,"Entering the _run Method");
 	m_running = true;
 	char *sddsDataBlock;
 	int bytes_read = 0;
@@ -176,9 +179,9 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 	while (not m_shutdown) {
 		bool sriChanged = false;
 		bytes_read = getDataPointer(&sddsDataBlock, sriChanged);
-		RH_NL_TRACE("BulkIOToSDDSProcessor", "Received " << bytes_read << " bytes from bulkIO");
+		LOG_TRACE(BulkIOToSDDSProcessor,"Received " << bytes_read << " bytes from bulkIO");
 		if (sriChanged) {
-			RH_NL_INFO("BulkIOToSDDSProcessor", "Stream SRI has changed, updating SDDS header.");
+			LOG_INFO(BulkIOToSDDSProcessor,"Stream SRI has changed, updating SDDS header.");
 			m_sdds_out_port->pushSRI(m_sri, m_current_time);
 			setSddsHeaderFromSri();
 		}
@@ -191,7 +194,7 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 		}
 
 		if (sendPacket(sddsDataBlock, bytes_read) < 0) {
-			RH_NL_ERROR("BulkIOToSDDSProcessor", "Failed to push packet over socket, stream will be closed.");
+			LOG_ERROR(BulkIOToSDDSProcessor,"Failed to push packet over socket, stream will be closed.");
 			callDettach();
 			m_shutdown = true;
 			continue;
@@ -203,12 +206,12 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 	m_first_run = true;
 	m_shutdown = false;
 	m_running = false;
-	RH_NL_TRACE("BulkIOToSDDSProcessor", "Exiting the _run Method");
+	LOG_TRACE(BulkIOToSDDSProcessor,"Exiting the _run Method");
 }
 
 template <class STREAM_TYPE>
 size_t BulkIOToSDDSProcessor<STREAM_TYPE>::getDataPointer(char **dataPointer, bool &sriChanged) {
-	RH_NL_TRACE("BulkIOToSDDSProcessor", "Entering getDataPointer Method");
+	LOG_TRACE(BulkIOToSDDSProcessor,"Entering getDataPointer Method");
 
 	size_t bytes_read = 0;
 	size_t complex_scale = (m_stream.sri().mode == 0 ? 1 : 2);
@@ -246,14 +249,14 @@ size_t BulkIOToSDDSProcessor<STREAM_TYPE>::getDataPointer(char **dataPointer, bo
 			m_sri = m_block.sri();
 			sriChanged = true;
 			if (m_block.sriChangeFlags() & bulkio::sri::MODE) {
-				RH_NL_ERROR("BulkIOToSDDSProcessor", "KNOWN ISSUE!! Mode was changed in the middle of a stream. "
+				LOG_ERROR(BulkIOToSDDSProcessor,"KNOWN ISSUE!! Mode was changed in the middle of a stream. "
 						"Going from Real->Complex this will cause 1 SDDS packets worth of data to have an incorrect time stamp. "
 						"Going from Complex->Real will cause a single packet to be erroneously padded with zeros.");
 			}
 		}
 	}
 
-	RH_NL_TRACE("BulkIOToSDDSProcessor", "Leaving getDataPointer Method");
+	LOG_TRACE(BulkIOToSDDSProcessor,"Leaving getDataPointer Method");
 	return bytes_read;
 }
 
@@ -267,7 +270,7 @@ int BulkIOToSDDSProcessor<STREAM_TYPE>::sendPacket(char* dataBlock, int num_byte
 	 * 4. We've read more than 1024, but less than 2*1024.
 	 */
 
-	RH_NL_TRACE("BulkIOToSDDSProcessor", "sendPacket called, told to send " << num_bytes <<  "bytes");
+	LOG_TRACE(BulkIOToSDDSProcessor,"sendPacket called, told to send " << num_bytes <<  "bytes");
 	if (num_bytes <= 0)
 		return 0;
 
@@ -289,7 +292,7 @@ int BulkIOToSDDSProcessor<STREAM_TYPE>::sendPacket(char* dataBlock, int num_byte
 	numSent = sendmsg(m_connection.sock, &m_pkt_template, 0);
 	if (numSent < 0) {return numSent;} // Error occurred
 
-	RH_NL_TRACE("BulkIOToSDDSProcessor", "Pushed " << numSent << " bytes out of socket.")
+	LOG_TRACE(BulkIOToSDDSProcessor,"Pushed " << numSent << " bytes out of socket.")
 
 	// Its possible we read more than a single packet if the mode changed on us (known bug)
 	return sendPacket(dataBlock + SDDS_DATA_SIZE, num_bytes - m_msg_iov[1].iov_len);
