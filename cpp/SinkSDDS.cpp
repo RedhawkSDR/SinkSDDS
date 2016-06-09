@@ -30,6 +30,9 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 	dataOctetIn->addStreamListener(&m_octetproc, &BulkIOToSDDSProcessor<bulkio::InOctetStream>::setStream);
 	dataOctetIn->removeStreamListener(&m_octetproc, &BulkIOToSDDSProcessor<bulkio::InOctetStream>::removeStream);
 
+	setPropertyConfigureImpl(sdds_settings, this, &SinkSDDS_i::set_sdds_settings_struct);
+	setPropertyConfigureImpl(network_settings, this, &SinkSDDS_i::set_network_settings_struct);
+
 	// TODO: I should set a connection listener for new connections made during start
 //	dataSddsOut->setNewConnectListener(this);
 
@@ -38,11 +41,25 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 
 SinkSDDS_i::~SinkSDDS_i(){}
 
-void SinkSDDS_i::constructor(){
-	m_floatproc.setSddsSettings(sdds_settings);
-	m_shortproc.setSddsSettings(sdds_settings);
-	m_octetproc.setSddsSettings(sdds_settings);
+void SinkSDDS_i::set_sdds_settings_struct(struct sdds_settings_struct request) {
+	if (started()) {
+		LOG_WARN(SinkSDDS_i, "Cannot set the sdds settings while component is running");
+		return;
+	}
+
+	sdds_settings = request;
 }
+
+void SinkSDDS_i::set_network_settings_struct(struct network_settings_struct request) {
+	if (started()) {
+		LOG_WARN(SinkSDDS_i, "Cannot set the network settings while component is running");
+		return;
+	}
+
+	network_settings = request;
+}
+
+void SinkSDDS_i::constructor(){}
 
 void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError) {
 	std::stringstream errorText;
@@ -51,6 +68,10 @@ void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError
 		LOG_WARN(SinkSDDS_i, "Already started, call to start ignored.");
 		return;
 	}
+
+	m_floatproc.setSddsSettings(sdds_settings);
+	m_shortproc.setSddsSettings(sdds_settings);
+	m_octetproc.setSddsSettings(sdds_settings);
 
 	int socket = setupSocket();
 	if (socket < 0) {

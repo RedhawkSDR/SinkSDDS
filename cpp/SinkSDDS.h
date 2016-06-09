@@ -18,7 +18,8 @@ class SinkSDDS_i : public SinkSDDS_base
         int serviceFunction();
         void start() throw (CORBA::SystemException, CF::Resource::StartError);
         void stop () throw (CF::Resource::StopError, CORBA::SystemException);
-
+        void set_sdds_settings_struct(struct sdds_settings_struct request);
+        void set_network_settings_struct(struct network_settings_struct request);
     private:
         int setupSocket();
         connection_t m_connection;

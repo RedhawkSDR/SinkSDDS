@@ -45,7 +45,6 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 # TODO: Original Format check
 # TODO: Spectral Sense check
 # TODO: df/dt drift test
-# TODO: Endianess
 # TODO: Time code valid checks
 # TODO: Track down issue where RH cannot release a waveform, I believe it has to do with releasing the component when a stream is running
 # TODO: Write unit test for timing checks
@@ -219,6 +218,21 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         self.dataFloatInTest(False)
     def testComplexFloat(self):
         self.dataFloatInTest(True)
+    
+    def testRealLittleEndianShort(self):
+        self.comp.sdds_settings.endian_representation=0
+        self.dataShortInTest(False, little_endian=True)
+    def testComplexLittleEndianShort(self):
+        self.comp.sdds_settings.endian_representation=0
+        self.dataShortInTest(True, little_endian=True)
+        
+    def testRealLittleEndianFloat(self):
+        self.comp.sdds_settings.endian_representation=0
+        self.dataFloatInTest(False, little_endian=True)
+    def testComplexLittleEndianFloat(self):
+        self.comp.sdds_settings.endian_representation=0
+        self.dataFloatInTest(True, little_endian=True)
+    
         
     def dataOctetInTest(self, is_complex):
         self.octetConnect()
@@ -232,13 +246,13 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         self.assertEqual(len(recv), 1080)
         
         # Validate data is correct
-        self.assertEqual(fakeData, list(struct.unpack('1024B', recv[-1024:])))
+        self.assertEqual(fakeData, list(struct.unpack('!1024B', recv[-1024:])))
         
         # Validate bps 
         sdds_header = self.getHeader(recv)
         self.assertEqual(sdds_header.bps, OCTET_BPS, "SDDS bps does not match expected.")
 
-    def dataShortInTest(self, is_complex):
+    def dataShortInTest(self, is_complex, little_endian=False):
         self.shortConnect()
         sb.start()
         
@@ -250,13 +264,16 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         self.assertEqual(len(recv), 1080)
         
         # Validate data is correct
-        self.assertEqual(fakeData, list(struct.unpack('!512H', recv[-1024:])))
+        if little_endian:
+            self.assertEqual(fakeData, list(struct.unpack('<512H', recv[-1024:])))
+        else:
+            self.assertEqual(fakeData, list(struct.unpack('!512H', recv[-1024:])))
         
         # Validate bps 
         sdds_header = self.getHeader(recv)
         self.assertEqual(sdds_header.bps, SHORT_BPS, "SDDS bps does not match expected.")
 
-    def dataFloatInTest(self, is_complex):
+    def dataFloatInTest(self, is_complex, little_endian=False):
         self.floatConnect()
         sb.start()
         
@@ -268,7 +285,10 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         self.assertEqual(len(recv), 1080)
         
         # Validate data is correct
-        self.assertEqual(fakeData, list(struct.unpack('!256f', recv[-1024:])))
+        if little_endian:
+            self.assertEqual(fakeData, list(struct.unpack('<256f', recv[-1024:])))
+        else:
+            self.assertEqual(fakeData, list(struct.unpack('!256f', recv[-1024:])))
         
         # Validate bps 
         sdds_header = self.getHeader(recv)
