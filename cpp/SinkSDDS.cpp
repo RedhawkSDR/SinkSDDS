@@ -21,13 +21,13 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 	m_floatproc(this, dataSddsOut),
 	m_octetproc(this, dataSddsOut)
 {
-	dataFloatIn->addStreamListener(&m_floatproc, &BulkIOToSDDSProcessor<bulkio::InFloatStream>::setStream);
+	dataFloatIn->addStreamListener(this, &SinkSDDS_i::setFloatStream);
 	dataFloatIn->removeStreamListener(&m_floatproc, &BulkIOToSDDSProcessor<bulkio::InFloatStream>::removeStream);
 
-	dataShortIn->addStreamListener(&m_shortproc, &BulkIOToSDDSProcessor<bulkio::InShortStream>::setStream);
+	dataShortIn->addStreamListener(this, &SinkSDDS_i::setShortStream);
 	dataShortIn->removeStreamListener(&m_shortproc, &BulkIOToSDDSProcessor<bulkio::InShortStream>::removeStream);
 
-	dataOctetIn->addStreamListener(&m_octetproc, &BulkIOToSDDSProcessor<bulkio::InOctetStream>::setStream);
+	dataOctetIn->addStreamListener(this, &SinkSDDS_i::setOctetStream);
 	dataOctetIn->removeStreamListener(&m_octetproc, &BulkIOToSDDSProcessor<bulkio::InOctetStream>::removeStream);
 
 	setPropertyConfigureImpl(sdds_settings, this, &SinkSDDS_i::set_sdds_settings_struct);
@@ -40,6 +40,30 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 }
 
 SinkSDDS_i::~SinkSDDS_i(){}
+
+void SinkSDDS_i::setFloatStream(bulkio::InFloatStream floatStream) {
+	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << floatStream.streamID() << " there is already an active stream");
+	} else {
+		m_floatproc.setStream(floatStream);
+	}
+}
+
+void SinkSDDS_i::setShortStream(bulkio::InShortStream shortStream) {
+	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << shortStream.streamID() << " there is already an active stream");
+	} else {
+		m_shortproc.setStream(shortStream);
+	}
+}
+
+void SinkSDDS_i::setOctetStream(bulkio::InOctetStream octetStream) {
+	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << octetStream.streamID() << " there is already an active stream");
+	} else {
+		m_octetproc.setStream(octetStream);
+	}
+}
 
 void SinkSDDS_i::set_sdds_settings_struct(struct sdds_settings_struct request) {
 	if (started()) {

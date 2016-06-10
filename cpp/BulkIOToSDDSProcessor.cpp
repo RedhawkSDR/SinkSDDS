@@ -212,7 +212,6 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 template <class STREAM_TYPE>
 size_t BulkIOToSDDSProcessor<STREAM_TYPE>::getDataPointer(char **dataPointer, bool &sriChanged) {
 	LOG_TRACE(BulkIOToSDDSProcessor,"Entering getDataPointer Method");
-
 	size_t bytes_read = 0;
 	size_t complex_scale = (m_stream.sri().mode == 0 ? 1 : 2);
 

@@ -20,6 +20,11 @@ class SinkSDDS_i : public SinkSDDS_base
         void stop () throw (CF::Resource::StopError, CORBA::SystemException);
         void set_sdds_settings_struct(struct sdds_settings_struct request);
         void set_network_settings_struct(struct network_settings_struct request);
+
+        void setFloatStream(bulkio::InFloatStream floatStream);
+        void setShortStream(bulkio::InShortStream shortStream);
+        void setOctetStream(bulkio::InOctetStream octetStream);
+
     private:
         int setupSocket();
         connection_t m_connection;

@@ -19,11 +19,13 @@ SHORT_BPS = [16,  0, 0, 0, 0]
 OCTET_BPS = [0,  8, 0, 0, 0]
 
 class SddsAttachDetachCB():
-    attaches = []
-    detaches = []
     
+    def __init__(self):
+        self.attaches = []
+        self.detaches = []
+        
     def attach_cb(self, streamDef, user_id):
-        print 'Received attach from: %s' % user_id
+        print '********* Received attach from: %s ********' % user_id
         self.attaches.append(streamDef)
     def detach_cb(self, attachId):
         print 'Received detach of: %s' % attachId
@@ -87,7 +89,60 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         time.sleep(1)
 
 # TODO: The attach detach test do not pass, is it a bug with me or them?
-    def testMultipleStreams(self):
+    def testMultipleStreamsDifferentPort(self):
+        self.octetConnect()
+        
+        short_source = sb.DataSource()
+        short_source.connect(self.comp, usesPortName='shortOut')
+        
+        sink = sb.DataSinkSDDS()
+        ad_cb = SddsAttachDetachCB();
+        sink.registerAttachCallback(ad_cb.attach_cb)
+        sink.registerDetachCallback(ad_cb.detach_cb)
+        self.comp.connect(sink)
+        sb.start()
+        
+        goodData1 = 1024*[1];
+        badData = 512*[2];
+        goodData2 = 512*[3];
+
+        # No data pushed, no attaches or detaches        
+        self.assertEqual(len(ad_cb.get_attach()), 0, "Should not have received any attaches")
+#         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
+        
+        # Push one good packet and confirm it was received
+        self.source.push(goodData1, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData1, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        # Since we pushed, we should get an attach, no detach
+        self.assertEqual(len(ad_cb.get_attach()), 1, "Should have received 1 attach total")
+#         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
+        
+        # Push a new stream, it should get ignored, confirm we receive no data and still have only a single attach
+        short_source.push(badData, EOS=False, streamID="Bad Stream", sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(len(self.getPacket()), 0, "Should not have passed on new stream, stream already active")
+        self.assertEqual(len(ad_cb.get_attach()), 1, "Should have received 1 attach total")
+#         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
+
+        # Push an EOS which should cause a detach        
+        self.source.push(goodData1, EOS=True, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData1, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        time.sleep(2)
+        self.assertEqual(len(ad_cb.get_attach()), 1, "Should have received 1 attach total")
+#         self.assertEqual(len(ad_cb.get_detach()), 1, "Should have received 1 detach total")
+
+        # Send a new stream, which means a new attach                
+        short_source.push(goodData2, EOS=False, streamID="New Stream", sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData2, list(struct.unpack('!512H', self.getPacket()[-1024:])))
+        self.assertEqual(len(ad_cb.get_attach()), 2, "Should have received 2 attach total")
+#         self.assertEqual(len(ad_cb.get_detach()), 1, "Should have received 1 detach total")
+        
+        # Tear stuff down, confirm we get the final detach
+        sb.release()
+        self.assertEqual(len(ad_cb.get_attach()), 2, "Should have received 2 attach total")
+        self.assertEqual(len(ad_cb.get_detach()), 2, "Should have received 2 detach total")
+
+# TODO: The attach detach test do not pass, is it a bug with me or them?
+    def testMultipleStreamsSamePort(self):
         self.octetConnect()
         sink = sb.DataSinkSDDS()
         ad_cb = SddsAttachDetachCB();
@@ -101,7 +156,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         goodData2 = 1024*[3];
 
         # No data pushed, no attaches or detaches        
-        self.assertEqual(len(ad_cb.get_attach()), 0, "Should not have received any attaches")
+        self.assertEqual(len(ad_cb.get_attach()), 0, "Should not have received any attaches but we have: %s " % len(ad_cb.get_attach()))
 #         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
         
         # Push one good packet and confirm it was received
