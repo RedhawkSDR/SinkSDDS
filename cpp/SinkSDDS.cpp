@@ -12,7 +12,6 @@
 
 PREPARE_LOGGING(SinkSDDS_i)
 
-//TODO: Create property that allows the user to optionally disable the SRI pushes out the attach port.
 //TODO: deal with the attach call, see if there are any callbacks available and have it call only if started.
 //TODO: Try and figure out a better way than calling each method on each processor
 SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
@@ -32,6 +31,7 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 
 	setPropertyConfigureImpl(sdds_settings, this, &SinkSDDS_i::set_sdds_settings_struct);
 	setPropertyConfigureImpl(network_settings, this, &SinkSDDS_i::set_network_settings_struct);
+	setPropertyConfigureImpl(override_sdds_header, this, &SinkSDDS_i::set_override_sdds_header_struct);
 
 	// TODO: I should set a connection listener for new connections made during start
 //	dataSddsOut->setNewConnectListener(this);
@@ -63,6 +63,15 @@ void SinkSDDS_i::setOctetStream(bulkio::InOctetStream octetStream) {
 	} else {
 		m_octetproc.setStream(octetStream);
 	}
+}
+
+void SinkSDDS_i::set_override_sdds_header_struct(struct override_sdds_header_struct request) {
+	if (started()) {
+		LOG_WARN(SinkSDDS_i, "Cannot set the sdds header struct while component is running");
+		return;
+	}
+
+	override_sdds_header = request;
 }
 
 void SinkSDDS_i::set_sdds_settings_struct(struct sdds_settings_struct request) {
@@ -97,6 +106,14 @@ void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError
 	m_shortproc.setSddsSettings(sdds_settings);
 	m_octetproc.setSddsSettings(sdds_settings);
 
+	m_floatproc.setOverrideHeaderSettings(override_sdds_header);
+	m_shortproc.setOverrideHeaderSettings(override_sdds_header);
+	m_octetproc.setOverrideHeaderSettings(override_sdds_header);
+
+	m_floatproc.setAttachSettings(sdds_attach_settings);
+	m_shortproc.setAttachSettings(sdds_attach_settings);
+	m_octetproc.setAttachSettings(sdds_attach_settings);
+
 	int socket = setupSocket();
 	if (socket < 0) {
 		errorText << "Could not setup the output socket, cannot start without successful socket connection.";
@@ -123,10 +140,6 @@ void SinkSDDS_i::stop () throw (CF::Resource::StopError, CORBA::SystemException)
 	m_shortproc.shutdown();
 	m_octetproc.shutdown();
 
-	m_floatproc.callDetach();
-	m_shortproc.callDetach();
-	m_octetproc.callDetach();
-
 	SinkSDDS_base::stop(); // Opens the port up so that the stream object will return and free up the read lock.
 
 	m_floatproc.join();
@@ -140,6 +153,8 @@ void SinkSDDS_i::stop () throw (CF::Resource::StopError, CORBA::SystemException)
 
 	LOG_TRACE(SinkSDDS_i, "Exiting stop method");
 }
+
+// TODO: On release maybe call detach
 
 int SinkSDDS_i::serviceFunction()
 {

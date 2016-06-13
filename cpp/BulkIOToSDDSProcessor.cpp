@@ -3,6 +3,8 @@
 template <class STREAM_TYPE>
 PREPARE_LOGGING(BulkIOToSDDSProcessor<STREAM_TYPE>)
 
+// TODO: Add keywords to SRI!
+
 template <class STREAM_TYPE>
 BulkIOToSDDSProcessor<STREAM_TYPE>::BulkIOToSDDSProcessor(Resource_impl *parent, bulkio::OutSDDSPort * dataSddsOut):
 m_parent(parent), m_sdds_out_port(dataSddsOut), m_first_run(true), m_block_clock_drift(0.0), m_processorThread(NULL), m_shutdown(false), m_running(false), m_active_stream(false),  m_vlan(0), m_seq(0) {
@@ -77,9 +79,26 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::run() {
 	}
 
 	callAttach();
+	overrideSddsHeader();
 
 	m_processorThread = new boost::thread(boost::bind(&BulkIOToSDDSProcessor<STREAM_TYPE>::_run, boost::ref(*this)));
 	LOG_TRACE(BulkIOToSDDSProcessor,"Leaving the Run Method");
+}
+
+template <class STREAM_TYPE>
+void BulkIOToSDDSProcessor<STREAM_TYPE>::overrideSddsHeader() {
+	if (m_sdds_header_override.enabled) {
+		m_sdds_template.bps = m_sdds_header_override.bps;
+		m_sdds_template.cx = m_sdds_header_override.cx;
+		m_sdds_template.set_dfdt(m_sdds_header_override.dfdt);
+		m_sdds_template.dmode = m_sdds_header_override.dmode;
+		m_sdds_template.set_freq(m_sdds_header_override.frequency);
+		m_sdds_template.set_msdel(m_sdds_header_override.msdel);
+		m_sdds_template.set_msptr(m_sdds_header_override.msptr);
+		m_sdds_template.set_msv(m_sdds_header_override.msv);
+		m_sdds_template.set_sscv(m_sdds_header_override.sscv);
+		m_sdds_template.set_ttv(m_sdds_header_override.ttv);
+	}
 }
 
 template <class STREAM_TYPE>
@@ -90,6 +109,7 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::callDetach() {
 	if (m_active_stream) {
 		LOG_TRACE(BulkIOToSDDSProcessor, "Calling detach on current stream: " << m_stream.streamID());
 		m_sdds_out_port->detach(CORBA::string_dup(m_stream.streamID().c_str()));
+		m_active_stream = false;
 	} else {
 		LOG_TRACE(BulkIOToSDDSProcessor, "Was told to call detach but also told there is no active stream!");
 	}
@@ -97,20 +117,21 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::callDetach() {
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::callAttach() {
+	LOG_INFO(BulkIOToSDDSProcessor, "Calling attach");
 	BULKIO::SDDSStreamDefinition sdef;
 
 	sdef.id = CORBA::string_dup(m_stream.streamID().c_str());
 
 	switch(sizeof(NATIVE_TYPE)) {
 	case sizeof(char):
-					sdef.dataFormat = (m_stream.sri().mode == 1) ? BULKIO::SDDS_CB : BULKIO::SDDS_SB;
-	break;
+		sdef.dataFormat = (m_stream.sri().mode == 1) ? BULKIO::SDDS_CB : BULKIO::SDDS_SB;
+		break;
 	case sizeof(short):
-					sdef.dataFormat = (m_stream.sri().mode == 1) ? BULKIO::SDDS_CI : BULKIO::SDDS_SI;
-	break;
+		sdef.dataFormat = (m_stream.sri().mode == 1) ? BULKIO::SDDS_CI : BULKIO::SDDS_SI;
+		break;
 	case sizeof(float):
-					sdef.dataFormat = (m_stream.sri().mode == 1) ? BULKIO::SDDS_CF : BULKIO::SDDS_SF;
-	break;
+		sdef.dataFormat = (m_stream.sri().mode == 1) ? BULKIO::SDDS_CF : BULKIO::SDDS_SF;
+		break;
 	default:
 		LOG_ERROR(BulkIOToSDDSProcessor,"Native type size is not what we would expect.");
 		break;
@@ -118,12 +139,12 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::callAttach() {
 	}
 
 	sdef.sampleRate = 1.0/m_stream.sri().xdelta;
-	sdef.timeTagValid = m_user_settings.time_tag_valid;
+	sdef.timeTagValid = m_attach_settings.time_tag_valid;
 	sdef.multicastAddress = CORBA::string_dup(inet_ntoa(m_connection.addr.sin_addr));
 	sdef.vlan = m_vlan;
 	sdef.port = ntohs(m_connection.addr.sin_port);
 
-	m_sdds_out_port->attach(sdef, m_user_settings.user_id.c_str());
+	m_sdds_out_port->attach(sdef, m_attach_settings.user_id.c_str());
 }
 
 template <class STREAM_TYPE>
@@ -137,8 +158,6 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setConnection(connection_t connection, 
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::shutdown() {
-	callDetach();
-	m_active_stream = false;
 	m_shutdown = true;
 }
 
@@ -165,8 +184,6 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::removeStream(STREAM_TYPE stream) {
 			shutdown();
 			join();
 		}
-
-		m_active_stream = false;
 	} else {
 		LOG_WARN(BulkIOToSDDSProcessor,"Was told to remove stream that was not already set.");
 	}
@@ -185,10 +202,9 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 		LOG_TRACE(BulkIOToSDDSProcessor,"Received " << bytes_read << " bytes from bulkIO");
 		if (sriChanged) {
 			LOG_INFO(BulkIOToSDDSProcessor,"Stream SRI has changed, updating SDDS header.");
-			m_sdds_out_port->pushSRI(m_sri, m_current_time);
+			pushSri();
 			setSddsHeaderFromSri();
 		}
-
 		if (not bytes_read) {
 			shutdown();
 			continue;
@@ -198,6 +214,10 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 			LOG_ERROR(BulkIOToSDDSProcessor,"Failed to push packet over socket, stream will be closed.");
 			shutdown();
 			continue;
+		}
+
+		if (m_stream.eos()) {
+			callDetach();
 		}
 
 		m_first_run = false; // TODO: Can we not set this every single time we run this loop? Seems silly.
@@ -216,7 +236,6 @@ size_t BulkIOToSDDSProcessor<STREAM_TYPE>::getDataPointer(char **dataPointer, bo
 	size_t complex_scale = (m_stream.sri().mode == 0 ? 1 : 2);
 
 	m_block = m_stream.read(SDDS_DATA_SIZE / sizeof(NATIVE_TYPE) / complex_scale);
-
 	if (!!m_block) {  //TODO: Document bang bang
 		m_current_time = m_block.getTimestamps().front().time;
 		m_block_clock_drift = getClockDrift(m_block.getTimestamps(), SDDS_DATA_SIZE / sizeof(NATIVE_TYPE) / complex_scale);
@@ -268,7 +287,7 @@ int BulkIOToSDDSProcessor<STREAM_TYPE>::sendPacket(char* dataBlock, int num_byte
 	 * 4. We've read more than 1024, but less than 2*1024.
 	 */
 
-	LOG_TRACE(BulkIOToSDDSProcessor,"sendPacket called, told to send " << num_bytes <<  "bytes");
+	LOG_TRACE(BulkIOToSDDSProcessor,"sendPacket called, told to send " << num_bytes <<  " bytes");
 	if (num_bytes <= 0)
 		return 0;
 
@@ -279,7 +298,6 @@ int BulkIOToSDDSProcessor<STREAM_TYPE>::sendPacket(char* dataBlock, int num_byte
 	m_sdds_template.set_seq(m_seq);
 	m_seq++;
 	if (m_seq != 0 && m_seq % 32 == 31) { m_seq++; } // Account for the parity packet that we aren't sending
-
 
 	m_msg_iov[1].iov_base = dataBlock;
 	m_msg_iov[1].iov_len = (num_bytes >= SDDS_DATA_SIZE) ? SDDS_DATA_SIZE : num_bytes;
@@ -299,16 +317,34 @@ int BulkIOToSDDSProcessor<STREAM_TYPE>::sendPacket(char* dataBlock, int num_byte
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::initializeSDDSHeader(){
 	m_sdds_template.pp = 0;  //PP Parity Packet
-	m_sdds_template.ssd[0] = 0;  //SSD Synchronous Serial Data
-	m_sdds_template.aad[0] = 0;  //AAD Asynchronous Auxiliary Data
+	m_sdds_template.set_sscv(1); // Valid Synchronous Sample Clock (frequency & df/dt)
+
+	switch (sizeof(NATIVE_TYPE)) {
+	case sizeof(char):
+		m_sdds_template.dmode = 1;
+		break;
+	case sizeof(short):
+		m_sdds_template.dmode = 2;
+		break;
+	default:
+		m_sdds_template.dmode = 0;
+		break;
+
+	}
+
+	for (size_t i = 0; i < SSD_LENGTH; ++i) { m_sdds_template.ssd[i] = 0; }
+	for (size_t i = 0; i < AAD_LENGTH; ++i) { m_sdds_template.aad[0] = 0; }
 }
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsHeaderFromSri() {
-	m_sdds_template.cx = m_sri.mode;
-	// This is the frequency of the digitizer clock which is twice the sample frequency if complex.
-	double freq = (m_sri.mode == 1) ? (2.0 / m_sri.xdelta) : (1.0 / m_sri.xdelta);
-	m_sdds_template.set_freq(freq);
+	if (not m_sdds_header_override.enabled) {
+		m_sdds_template.cx = m_sri.mode;
+		// This is the frequency of the digitizer clock which is twice the sample frequency if complex.
+		double freq = (m_sri.mode == 1) ? (2.0 / m_sri.xdelta) : (1.0 / m_sri.xdelta);
+		m_sdds_template.set_freq(freq);
+	}
+
 	if (m_first_run) {
 		m_sdds_template.sos = 1;
 	}
@@ -358,6 +394,31 @@ double BulkIOToSDDSProcessor<STREAM_TYPE>::getClockDrift(std::list<bulkio::Sampl
 	double expected_pkt_delta = ts.front().time + numSamples*m_sri.xdelta - ts.front().time;
 
 	return expected_pkt_delta - pkt_delta;
+}
+
+template <class STREAM_TYPE>
+void BulkIOToSDDSProcessor<STREAM_TYPE>::setOverrideHeaderSettings(override_sdds_header_struct sdds_header_override) {
+	m_sdds_header_override = sdds_header_override;
+}
+
+template <class STREAM_TYPE>
+void BulkIOToSDDSProcessor<STREAM_TYPE>::setAttachSettings(sdds_attach_settings_struct attach_settings) {
+	m_attach_settings = attach_settings;
+}
+
+template <class STREAM_TYPE>
+void BulkIOToSDDSProcessor<STREAM_TYPE>::pushSri() {
+	LOG_INFO(BulkIOToSDDSProcessor, "Pushing SRI to downstream components");
+	if (m_attach_settings.downstream_give_sri_priority) {
+		addModifyKeyword<long>(&m_sri,"BULKIO_SRI_PRIORITY",CORBA::Long(1));
+	}
+
+	if (m_user_settings.endian_representation) {
+		addModifyKeyword<long>(&m_sri,"DATA_REF_STR",CORBA::Long(52651));
+	} else {
+		addModifyKeyword<long>(&m_sri,"DATA_REF_STR",CORBA::Long(43981)); //TODO: Remove magic numbers
+	}
+	m_sdds_out_port->pushSRI(m_sri, m_current_time);
 }
 
 template class BulkIOToSDDSProcessor<bulkio::InShortStream>;

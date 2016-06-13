@@ -28,27 +28,25 @@
   <struct id="sdds_settings" mode="readwrite">
     <description>SDDS Packet Settings</description>
     <simple id="sdds_settings::standard_format" mode="readwrite" name="standard_format" type="short">
-      <description>The SF (Standard Format) field is used to identify whether or not the packet conforms to the SDDS standard. For SDDS standard packets, the SF bit shall be set to a value of 1. The SF bit shall b eset to a value of zero for non-standard packets.</description>
+      <description>The SF (Standard Format) field is used to identify whether or not the packet conforms to the SDDS standard. For SDDS standard packets, the SF bit shall be set to a value of 1. The SF bit shall be set to a value of zero for non-standard packets.</description>
       <value>1</value>
+      <range max="1" min="0"/>
       <action type="external"/>
     </simple>
     <simple id="sdds_settings::original_format" mode="readwrite" name="original_format" type="short">
       <description>The OF (Original Format) field identifies the original format of the data transmitted. If the data was originally offset binary and has been converted to 2's complement, the OF value is set to one. Otherwise, the data is 2's complement and has not been converted and the OF value is set to zero.</description>
       <value>0</value>
+      <range max="1" min="0"/>
       <action type="external"/>
     </simple>
     <simple id="sdds_settings::spectral_sense" mode="readwrite" name="spectral_sense" type="short">
       <description>The SS (Spectral Sense) field identifiees whether or not the spectral sense has been inverted from the original input. The SS value is set to one if the spectral sense has been inverted. The SS value is set to zero if the spectral sense has not been inverted.</description>
       <value>0</value>
-      <action type="external"/>
-    </simple>
-    <simple id="sdds_settings::user_id" mode="readwrite" name="user_id" type="string">
-      <description>Used as a parameter to the attach call.</description>
-      <value>anonymous</value>
+      <range max="1" min="0"/>
       <action type="external"/>
     </simple>
     <simple id="sdds_settings::endian_representation" mode="readwrite" name="endian_representation" type="long">
-      <description>The endianness (Big or Little) of the data portion of the SDDS packet. Defaults to Network Byte Order (Big Endian)</description>
+      <description>The endianness (Big or Little) of the data portion of the SDDS packet. Defaults to Network Byte Order (Big Endian). This will also affect the SRI keyword DATA_REF_STR and set it appropriately</description>
       <value>1</value>
       <enumerations>
         <enumeration label="LITTLE_ENDIAN" value="0"/>
@@ -56,9 +54,74 @@
       </enumerations>
       <action type="external"/>
     </simple>
-    <simple id="sdds_settings::time_tag_valid" name="time_tag_valid" type="boolean">
+    <configurationkind kindtype="property"/>
+  </struct>
+  <struct id="sdds_attach_settings" mode="readwrite" name="sdds_attach_settings">
+    <simple id="sdds_attach_settings::time_tag_valid" name="time_tag_valid" type="boolean">
       <description>Used only in the attach call. The attach call is made prior to the bulkIO TimeStamp being available so the true BULKIO::TCS_VALID flag cannot be checked. This is only used during the call to attach.</description>
       <value>true</value>
+    </simple>
+    <simple id="sdds_attach_settings::user_id" mode="readwrite" name="user_id" type="string">
+      <description>Used as a parameter to the attach call.</description>
+      <value>anonymous</value>
+      <action type="external"/>
+    </simple>
+    <simple id="sdds_attach_settings::downstream_should_use_sri" name="downstream_give_sri_priority" type="boolean">
+      <description>Informs downstream components, via the BULKIO_SRI_PRIORITY keyword, to override the xdelta and real/complex mode found in the SDDS Packet header in place of the xdelta and mode found in the supplied SRI.</description>
+      <value>false</value>
+    </simple>
+    <configurationkind kindtype="property"/>
+  </struct>
+  <struct id="override_sdds_header" mode="readwrite" name="override_sdds_header">
+    <simple id="override_sdds_header::enabled" name="enabled" type="boolean">
+      <description>If true, the values in this struct will override the default values used by this component. Each property should have a description which explains what values would generally be used.</description>
+      <value>false</value>
+    </simple>
+    <simple id="override_sdds_header::dmode" name="dmode" type="ushort">
+      <description>The data mode field identifies the structure of the data field. See the full specification for details. Unless overridden, this is set to 1 for byte samples, 2 for shorts, and 0 for floats as floats are not part of the standadr.</description>
+      <value>0</value>
+      <range max="7" min="0"/>
+    </simple>
+    <simple id="override_sdds_header::bps" name="bps" type="ushort">
+      <description>The number of bits per sample where the sample size in this case is only refering to the size of the native type used eg. byte, short, float. Bytes are 8, Shorts 16, and since only 5 bits are available, a float is labeled as 31 rather than 32.  Unless overridden, this is derived from the sizeof call on the native bulkIO packet type.</description>
+      <value>0</value>
+      <range max="31" min="0"/>
+    </simple>
+    <simple id="override_sdds_header::cx" name="cx" type="ushort">
+      <description>Denotes if the data portion of the packet represents real (0) or complex (1) values. Unless overridden, this is derived from the mode field within the SRI.</description>
+      <value>0</value>
+      <range max="1" min="0"/>
+    </simple>
+    <simple id="override_sdds_header::msv" name="msv" type="ushort">
+      <description>Denotes if the samples within this packet span a 1-millisecond boundry. Unless overridden, this field is not used and set to zero.</description>
+      <value>0</value>
+      <range max="1" min="0"/>
+    </simple>
+    <simple id="override_sdds_header::ttv" name="ttv" type="ushort">
+      <description>Time Tag Valid field denotes if the values stored within the Time Tag information fields (Time Tag, Time Tag Extension) are valid.  Unless overridden, this is derived from the tcstatus field of BulkIO Timestamps and is set to true if equal to TCS_VALID and false otherwise.</description>
+      <value>0</value>
+      <range max="1" min="0"/>
+    </simple>
+    <simple id="override_sdds_header::sscv" name="sscv" type="ushort">
+      <description>Synchronous Sample Clock Valid field is 1 if the SSC information fields (df/dt and Frequency) are valid and zero otherwise. Unless overridden, this is always set to 1.</description>
+      <value>0</value>
+      <range max="1" min="0"/>
+    </simple>
+    <simple id="override_sdds_header::msptr" name="msptr" type="ushort">
+      <description>Points to the first sample in the data field that occurred after the 1-millisecond event. Unless overridden, this is always set to 0.</description>
+      <value>0</value>
+    </simple>
+    <simple id="override_sdds_header::msdel" name="msdel" type="ushort">
+      <description>The 1-ms Delta is the time difference between the 1-millisecond event and the first positive going transistion of the SSC that occurred after the 1-millisecond event. Unless overridden, this is always set to 0.</description>
+      <value>0</value>
+    </simple>
+    <simple id="override_sdds_header::frequency" name="frequency" type="double">
+      <description>The frequency field contains the frequency of the SSC. This value represents the instantaneous frqeuency of the SSC associated with the first sample of the frame.  Unless overridden, this is derived from the xdelta found in the SRI.</description>
+      <value>0</value>
+    </simple>
+    <simple id="override_sdds_header::dfdt" name="dfdt" type="double">
+      <description>The df/dt field measures the rate at which the frequency is changing. The value represents the delta between the instantaneous frequency of the last SSC of the packet and the instantaneous frequency of the first SSC of the packet divided by the packet duration. Unless overridden, this is derived from bulkIO timestamps and sample xdelta.</description>
+      <value>0</value>
     </simple>
     <configurationkind kindtype="property"/>
   </struct>

@@ -13,6 +13,8 @@
 
 #define SDDS_DATA_SIZE 1024
 #define SDDS_HEADER_SIZE 56
+#define SSD_LENGTH 2
+#define AAD_LENGTH 20
 
 template <class STREAM_TYPE>
 class BulkIOToSDDSProcessor {
@@ -31,6 +33,8 @@ public:
 	void callDetach();
 	void callAttach();
 	void setConnection(connection_t connection, uint16_t vlan);
+	void setOverrideHeaderSettings(override_sdds_header_struct sdds_header_override);
+	void setAttachSettings(sdds_attach_settings_struct attach_settings);
 	void shutdown();
 	void setStream(STREAM_TYPE stream);
 	void removeStream(STREAM_TYPE stream);
@@ -44,6 +48,8 @@ private:
 	void setSddsTimestamp();
 	time_t getStartOfYear();
 	double getClockDrift(std::list<bulkio::SampleTimestamp> ts, size_t numSamples);
+	void overrideSddsHeader();
+	void pushSri();
 
 	Resource_impl *m_parent;
 	bulkio::OutSDDSPort *m_sdds_out_port;
@@ -63,7 +69,29 @@ private:
 	msghdr m_pkt_template;
 	connection_t m_connection;
 	uint16_t m_seq;
+	override_sdds_header_struct m_sdds_header_override;
+	sdds_attach_settings_struct m_attach_settings;
 
+	template <typename CORBAXX>
+		bool addModifyKeyword(BULKIO::StreamSRI *sri, CORBA::String_member id, CORBAXX myValue, bool addOnly = false) {
+			CORBA::Any value;
+			value <<= (CORBAXX) myValue;
+			unsigned long keySize = sri->keywords.length();
+			if (!addOnly) {
+				for (unsigned int i = 0; i < keySize; i++) {
+					if (!strcmp(sri->keywords[i].id, id)) {
+						sri->keywords[i].value = value;
+						return true;
+					}
+				}
+			}
+			sri->keywords.length(keySize + 1);
+			if (sri->keywords.length() != keySize + 1)
+				return false;
+			sri->keywords[keySize].id = CORBA::string_dup(id);
+			sri->keywords[keySize].value = value;
+			return true;
+		}
 };
 
 #endif /* BULKIOTOSDDSPROCESSOR_H_ */

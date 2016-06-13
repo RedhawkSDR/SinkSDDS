@@ -1,11 +1,11 @@
 0c7c8b25a0c59afa7c2390b3ce6b1186  main.cpp
 8bfcd22353c3a57fee561ad86ee2a56b  reconf
-6581cbfd443a30174419c26efaf2cd21  SinkSDDS_base.h
+c1f432ec31432e2ed47f4a0c9b8c1df7  SinkSDDS_base.h
 854b044e8c3b59f640223c5e57c2d82e  configure.ac
 ba6e0e5b42111a5c1fd67c0cd6ec597e  SinkSDDS.h
 740b20ff49c76b9f88fadf08f11a3eed  SinkSDDS.cpp
 40d011d79912d48445d9b09ed6733d9c  Makefile.am
-db156211297ae2b9d84bb0bba9ad2d75  struct_props.h
+29f9e98d7b20de2069352aa33eab04d9  struct_props.h
 dc9af4f6a37d4e65cb815a222ff2f5ab  Makefile.am.ide
-ade7605b14d9ef0a557a8007881fa77a  SinkSDDS_base.cpp
+9419c0c841487ad90afac32a45855d02  SinkSDDS_base.cpp
 b87651ea3565402473fb088004430fbf  build.sh

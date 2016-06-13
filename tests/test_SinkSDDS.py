@@ -88,6 +88,39 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         
         time.sleep(1)
 
+
+
+    def testStartStopStart(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        ad_cb = SddsAttachDetachCB();
+        sink.registerAttachCallback(ad_cb.attach_cb)
+        sink.registerDetachCallback(ad_cb.detach_cb)
+        
+        self.comp.connect(sink)
+        sb.start()
+        
+        fakeData = 1024*[1];
+        fakeData2 = 1024*[2];
+        self.assertEqual(len(ad_cb.get_attach()), 0, "Should not have received any attaches")
+        self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        rcv = self.getPacket()[-1024:]
+        print ' YLB YLB YLB YLB length of data ', len(rcv)
+        self.assertEqual(fakeData, list(struct.unpack('1024B', rcv)))
+        print ' YLB YLB YLB YLB calling stop'
+        self.comp.stop()
+        time.sleep(0.1)
+        print ' YLB YLB YLB YLB calling start'
+        self.comp.start()
+        time.sleep(0.1)
+        print ' YLB YLB YLB YLB pushing data'
+        self.source.push(fakeData2, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        print ' YLB YLB YLB YLB Readomg data'
+        rcv = self.getPacket()[-1024:]
+        print ' YLB YLB YLB YLB length of data ', len(rcv)
+        self.assertEqual(fakeData2, list(struct.unpack('1024B', rcv)))
+        
+        
 # TODO: The attach detach test do not pass, is it a bug with me or them?
     def testMultipleStreamsDifferentPort(self):
         self.octetConnect()

@@ -88,6 +88,24 @@ void SinkSDDS_base::loadProperties()
                 "external",
                 "property");
 
+    addProperty(sdds_attach_settings,
+                sdds_attach_settings_struct(),
+                "sdds_attach_settings",
+                "sdds_attach_settings",
+                "readwrite",
+                "",
+                "external",
+                "property");
+
+    addProperty(override_sdds_header,
+                override_sdds_header_struct(),
+                "override_sdds_header",
+                "override_sdds_header",
+                "readwrite",
+                "",
+                "external",
+                "property");
+
 }
 
 

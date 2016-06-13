@@ -28,6 +28,10 @@ class SinkSDDS_base : public Component, protected ThreadedComponent
         network_settings_struct network_settings;
         /// Property: sdds_settings
         sdds_settings_struct sdds_settings;
+        /// Property: sdds_attach_settings
+        sdds_attach_settings_struct sdds_attach_settings;
+        /// Property: override_sdds_header
+        override_sdds_header_struct override_sdds_header;
 
         // Ports
         /// Port: dataShortIn
