@@ -105,19 +105,13 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         self.assertEqual(len(ad_cb.get_attach()), 0, "Should not have received any attaches")
         self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
         rcv = self.getPacket()[-1024:]
-        print ' YLB YLB YLB YLB length of data ', len(rcv)
         self.assertEqual(fakeData, list(struct.unpack('1024B', rcv)))
-        print ' YLB YLB YLB YLB calling stop'
         self.comp.stop()
         time.sleep(0.1)
-        print ' YLB YLB YLB YLB calling start'
         self.comp.start()
         time.sleep(0.1)
-        print ' YLB YLB YLB YLB pushing data'
         self.source.push(fakeData2, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
-        print ' YLB YLB YLB YLB Readomg data'
         rcv = self.getPacket()[-1024:]
-        print ' YLB YLB YLB YLB length of data ', len(rcv)
         self.assertEqual(fakeData2, list(struct.unpack('1024B', rcv)))
         
         
