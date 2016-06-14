@@ -10,6 +10,8 @@ import Sdds
 import binascii
 import sys
 
+from ossie.utils.bulkio.bulkio_data_helpers import SDDSSink
+
 DEBUG_LEVEL = 0
 UNICAST_PORT = 1234
 UNICAST_IP = '127.0.0.1'
@@ -18,6 +20,12 @@ FLOAT_BPS = [16, 8, 4, 2, 1]
 SHORT_BPS = [16,  0, 0, 0, 0]
 OCTET_BPS = [0,  8, 0, 0, 0]
 
+# Working around existing 2.0.1 framework sb bug where the SDDSink does not hold on to the sri
+class SDDSSink2(SDDSSink):
+    
+    def pushSRI(self, H, T):
+        self.sri = H
+    
 class SddsAttachDetachCB():
     
     def __init__(self):
@@ -50,7 +58,8 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 # TODO: Time code valid checks
 # TODO: Track down issue where RH cannot release a waveform, I believe it has to do with releasing the component when a stream is running
 # TODO: Write unit test for timing checks
-# TODO: Create property for overriting SRI
+# TODO: Create property for overwriting SRI
+# TODO: SDDS Override
 
 
     # This unit test takes FOREVER (going through all the packets) how can we speed this thing up?
@@ -79,16 +88,91 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
             
 
 # TODO
-    def testTimeDrift(self):
+#     def testTimeDrift(self):
+#         self.octetConnect()
+#         sb.start()
+#         fakeData = 100*[10];
+#         for x in range(100):
+#             self.sendPacket(fakeData, 1.0, True, eos=False)
+#         
+#         time.sleep(1)
+
+
+    def testMsvOverride(self):
         self.octetConnect()
-        sb.start()
-        fakeData = 100*[10];
-        for x in range(100):
-            self.sendPacket(fakeData, 1.0, True, eos=False)
+        sink = sb.DataSinkSDDS()
+        self.comp.override_sdds_header.enabled = True
         
+        for msv in range(2):
+            time.sleep(0.1)
+            self.comp.override_sdds_header.msv = msv
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            sdds_header = self.getHeader(rcv)
+            self.assertEqual(sdds_header.msv, msv, "Received MSV that did not match expected")
+            sb.stop()
+
+    def testCxOverride(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        self.comp.override_sdds_header.enabled = True
+        
+        for cx in range(2):
+            time.sleep(0.1)
+            self.comp.override_sdds_header.cx = cx
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            self.assertEqual(self.getCx(rcv), cx, "Received CX that did not match expected")
+            sb.stop()
+            
+    def testBPSOverride(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        self.comp.override_sdds_header.enabled = True
+        
+        for bps in range(32):
+            time.sleep(0.1)
+            self.comp.override_sdds_header.bps = bps
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            sdds_header = self.getHeader(rcv)
+            self.assertEqual(bps, sum(sdds_header.bps), "Received BPS that did not match expected")
+            sb.stop()
+
+    def testEndianChange(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        sink._sink = SDDSSink2(sink) # Work around for framework bug
+        sink._snk = sink._sink
+        ad_cb = SddsAttachDetachCB();
+        sink.registerAttachCallback(ad_cb.attach_cb)
+        sink.registerDetachCallback(ad_cb.detach_cb)
+        
+        self.comp.connect(sink)
+        self.comp.sdds_settings.endian_representation = 0 # Little Endian
+        sb.start()
+        
+        fakeData = 1024*[1];
+        self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
         time.sleep(1)
-
-
+        print(sink.sri().keywords)
+        
+        # Check the keywords
+        self.comp.stop()
+        time.sleep(0.1)
+        self.comp.sdds_settings.endian_representation = 1 # Big Endian
+        self.comp.start()
+        time.sleep(0.1)
+        self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        time.sleep(0.1)
+        print(sink.sri().keywords)
+        # Check the keywords
 
     def testStartStopStart(self):
         self.octetConnect()
@@ -448,9 +532,9 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         CX_MASK = (1   << 7)
         BPS_MASK = (31 << 0)
         
-        MSV_MASK = 0x0080
-        TTV_MASK = 0x0040
-        SSV_MASK = 0x0020
+        MSV_MASK = (1 << 7 + 8)
+        TTV_MASK = (1 << 6 + 8)
+        SSV_MASK = (1 << 5 + 8)
         
         raw_header = struct.unpack('>HHHHQLLQ24B', p[:56])
         SF = (raw_header[0] & SF_MASK) >> (7)
@@ -466,11 +550,11 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         
         FSN = raw_header[1]
         
-        # TODO: Fix these by shifting them down
-        MSV = raw_header[2] & MSV_MASK
-        TTV = raw_header[2] & TTV_MASK
-        SSV = raw_header[2] & SSV_MASK
+        MSV = (raw_header[2] & MSV_MASK) >> 7 + 8
+        TTV = (raw_header[2] & TTV_MASK) >> 6 + 8
+        SSV = (raw_header[2] & SSV_MASK) >> 5 + 8
         
+        # TODO: Fix these by shifting them down
         MSD = raw_header[3]
         TT = raw_header[4]
         TTE = raw_header[5]
