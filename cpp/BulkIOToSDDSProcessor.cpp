@@ -3,8 +3,6 @@
 template <class STREAM_TYPE>
 PREPARE_LOGGING(BulkIOToSDDSProcessor<STREAM_TYPE>)
 
-// TODO: Add keywords to SRI!
-
 template <class STREAM_TYPE>
 BulkIOToSDDSProcessor<STREAM_TYPE>::BulkIOToSDDSProcessor(Resource_impl *parent, bulkio::OutSDDSPort * dataSddsOut):
 m_parent(parent), m_sdds_out_port(dataSddsOut), m_first_run(true), m_block_clock_drift(0.0), m_processorThread(NULL), m_shutdown(false), m_running(false), m_active_stream(false),  m_vlan(0), m_seq(0) {
@@ -172,7 +170,11 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setStream(STREAM_TYPE stream) {
 
 	m_stream = stream;
 	m_active_stream = true;
-	m_sdds_template.bps = (sizeof(NATIVE_TYPE) == sizeof(float)) ? (31) : 8*sizeof(NATIVE_TYPE);
+
+	if (not m_sdds_header_override.enabled) {
+		m_sdds_template.bps = (sizeof(NATIVE_TYPE) == sizeof(float)) ? (31) : 8*sizeof(NATIVE_TYPE);
+	}
+
 	if (m_parent->started()) { run(); }
 }
 
