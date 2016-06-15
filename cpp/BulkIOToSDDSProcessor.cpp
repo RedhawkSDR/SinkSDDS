@@ -356,8 +356,10 @@ template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsTimestamp() {
 	SDDSTime sdds_time(m_current_time.twsec - getStartOfYear(), m_current_time.tfsec);
 	m_sdds_template.set_SDDSTime(sdds_time);
-	m_sdds_template.set_ttv((m_current_time.tcstatus == BULKIO::TCS_VALID));
-	m_sdds_template.set_dfdt(m_block_clock_drift);
+	if (not m_sdds_header_override.enabled) {
+		m_sdds_template.set_ttv((m_current_time.tcstatus == BULKIO::TCS_VALID));
+		m_sdds_template.set_dfdt(m_block_clock_drift);
+	}
 }
 
 template <class STREAM_TYPE>

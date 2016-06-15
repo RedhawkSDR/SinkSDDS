@@ -110,6 +110,7 @@
     <simple id="override_sdds_header::msptr" name="msptr" type="ushort">
       <description>Points to the first sample in the data field that occurred after the 1-millisecond event. Unless overridden, this is always set to 0.</description>
       <value>0</value>
+      <range max="2047" min="0"/>
     </simple>
     <simple id="override_sdds_header::msdel" name="msdel" type="ushort">
       <description>The 1-ms Delta is the time difference between the 1-millisecond event and the first positive going transistion of the SSC that occurred after the 1-millisecond event. Unless overridden, this is always set to 0.</description>
