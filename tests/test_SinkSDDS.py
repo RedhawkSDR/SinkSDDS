@@ -9,6 +9,7 @@ import struct
 import Sdds
 import binascii
 import sys
+import random
 
 from ossie.utils.bulkio.bulkio_data_helpers import SDDSSink
 
@@ -97,7 +98,71 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 #         
 #         time.sleep(1)
 
+    def testMsptrOverride(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        self.comp.override_sdds_header.enabled = True
+        
+        for i in range(10):
+            msptr = random.randint(0,2047)
+            time.sleep(0.1)
+            self.comp.override_sdds_header.msptr = msptr
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            rcv_msptr = self.getMsptr(rcv)
+            self.assertEqual(rcv_msptr, msptr, "Received msptr that did not match expected")
+            sb.stop()
 
+    def testSsvOverride(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        self.comp.override_sdds_header.enabled = True
+        
+        for ssv in range(2):
+            time.sleep(0.1)
+            self.comp.override_sdds_header.sscv = ssv
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            sdds_header = self.getHeader(rcv)
+            self.assertEqual(sdds_header.ssv, ssv, "Received SSV that did not match expected")
+            sb.stop()
+            
+    def testTtvOverride(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        self.comp.override_sdds_header.enabled = True
+        
+        for ttv in range(2):
+            time.sleep(0.1)
+            self.comp.override_sdds_header.ttv = ttv
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            sdds_header = self.getHeader(rcv)
+            self.assertEqual(sdds_header.ttv, ttv, "Received TTV that did not match expected")
+            sb.stop()
+
+    def testTtvOverride(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        self.comp.override_sdds_header.enabled = True
+        
+        for ttv in range(2):
+            time.sleep(0.1)
+            self.comp.override_sdds_header.ttv = ttv
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            sdds_header = self.getHeader(rcv)
+            self.assertEqual(sdds_header.ttv, ttv, "Received TTV that did not match expected")
+            sb.stop()
+            
     def testMsvOverride(self):
         self.octetConnect()
         sink = sb.DataSinkSDDS()
@@ -567,6 +632,10 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         CX_MASK = (1 << (0 + 7))
         raw_header = struct.unpack('>HHHHQLLQ24B', p[:56])
         return (raw_header[0] & CX_MASK) >> 7
+    def getMsptr(self,p):
+        MSPTR_MASK = 8191
+        raw_header = struct.unpack('>HHHHQLLQ24B', p[:56])
+        return (raw_header[2] & MSPTR_MASK)
         
 
 if __name__ == "__main__":
