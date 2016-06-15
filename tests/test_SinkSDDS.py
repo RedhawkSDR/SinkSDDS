@@ -98,6 +98,40 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 #         
 #         time.sleep(1)
 
+    def testDfdtOverride(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        self.comp.override_sdds_header.enabled = True
+        
+        for dfdt in [x * .1 for x in range(10)]:
+            time.sleep(0.1)
+            self.comp.override_sdds_header.dfdt = dfdt
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            sdds_header = self.getHeader(rcv)
+            self.assertEqual(sdds_header.dfdt, int(1073741824*dfdt), "Received MSdelta that did not match expected")
+            sb.stop()
+
+    def testMsdelOverride(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        self.comp.override_sdds_header.enabled = True
+        
+        for i in range(10):
+            msdel = random.randint(0,65535)
+            time.sleep(0.1)
+            self.comp.override_sdds_header.msdel = msdel
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            sdds_header = self.getHeader(rcv)
+            self.assertEqual(sdds_header.timeCode1msDelta, msdel, "Received MSdelta that did not match expected")
+            sb.stop()
+            
+            
     def testMsptrOverride(self):
         self.octetConnect()
         sink = sb.DataSinkSDDS()
@@ -619,12 +653,13 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         TTV = (raw_header[2] & TTV_MASK) >> 6 + 8
         SSV = (raw_header[2] & SSV_MASK) >> 5 + 8
         
+        DFDT = raw_header[6]
+        FREQ = raw_header[7]
+        
         # TODO: Fix these by shifting them down
         MSD = raw_header[3]
         TT = raw_header[4]
         TTE = raw_header[5]
-        DFDT = raw_header[6]
-        FREQ = raw_header[7]
          
         return Sdds.SddsHeader(FSN, SF, SoS, PP, OF, SS, DM, BPS, MSV, TTV, SSV, MSD, TT, TTE, DFDT, FREQ)
 
