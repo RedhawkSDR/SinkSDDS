@@ -116,14 +116,10 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 #         fakeData = 100*[10];
 #         for x in range(100):
 #             self.sendPacket(fakeData, 1.0, True, eos=False)
-#         
+#          
 #         time.sleep(1)
 
     def testBulkIOTimeStamp(self):
-        ts_start=BULKIO.PrecisionUTCTime(BULKIO.TCM_CPU,
-                                   BULKIO.TCS_VALID, 0.0,
-                                   1466109385, 0.558434963226)
-        
         ts_start = bulkio_helpers.createCPUTimestamp()
         self.source = sb.DataSource(startTime=ts_start.twsec+ts_start.tfsec)
         self.octetConnect()
