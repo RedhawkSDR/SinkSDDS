@@ -9,9 +9,11 @@ import struct
 import Sdds
 import binascii
 import sys
-import random
+import random, datetime
+from bulkio import BULKIO
 
 from ossie.utils.bulkio.bulkio_data_helpers import SDDSSink
+from ossie.utils.bulkio import bulkio_helpers
 
 DEBUG_LEVEL = 0
 UNICAST_PORT = 1234
@@ -21,6 +23,25 @@ FLOAT_BPS = [16, 8, 4, 2, 1]
 SHORT_BPS = [16,  0, 0, 0, 0]
 OCTET_BPS = [0,  8, 0, 0, 0]
 
+
+def timedelta_total_seconds(timedelta):
+    return (
+        timedelta.microseconds + 0.0 +
+        (timedelta.seconds + timedelta.days * 24 * 3600) * 10 ** 6) / 10 ** 6
+        
+        
+class UTC(datetime.tzinfo):
+    """UTC"""
+
+    def utcoffset(self, dt):
+        return datetime.timedelta(0)
+
+    def tzname(self, dt):
+        return "UTC"
+
+    def dst(self, dt):
+        return datetime.timedelta(0)
+    
 # Working around existing 2.0.1 framework sb bug where the SDDSink does not hold on to the sri
 class SDDSSink2(SDDSSink):
     
@@ -98,6 +119,53 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 #         
 #         time.sleep(1)
 
+    def testBulkIOTimeStamp(self):
+        ts_start=BULKIO.PrecisionUTCTime(BULKIO.TCM_CPU,
+                                   BULKIO.TCS_VALID, 0.0,
+                                   1466109385, 0.558434963226)
+        
+        ts_start = bulkio_helpers.createCPUTimestamp()
+        self.source = sb.DataSource(startTime=ts_start.twsec+ts_start.tfsec)
+        self.octetConnect()
+        sb.start()
+        fakeData = 1024*[1];
+        self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        rcv = self.getPacket()
+        sdds_header = self.getHeader(rcv)
+        frac_int = sdds_header.timeTag % 4000000000
+        secs_int = sdds_header.timeTag - frac_int
+        frac_flt = frac_int / 4e9
+        secs_flt = secs_int / 4e9
+        ext_flt = 250e-12 * sdds_header.timeTagExt / 4294967296.0
+        frac_flt += ext_flt
+        
+        now = datetime.datetime.utcnow()
+        first_of_year = datetime.datetime(now.year, 1, 1, tzinfo=UTC())
+        begin_of_time = datetime.datetime(1970, 1, 1, tzinfo=UTC())
+        startOfYear = timedelta_total_seconds(first_of_year - begin_of_time)
+        
+        bulkIO_twsec = secs_flt + startOfYear
+        bulkIO_tfsec = frac_flt
+        
+        self.assertEqual(bulkIO_tfsec, ts_start.tfsec, "Expected frac seconds do not match")        
+        self.assertEqual(bulkIO_twsec, ts_start.twsec, "Expected whole seconds do not match")
+        
+    def testFrequencyOverride(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        self.comp.override_sdds_header.enabled = True
+        
+        for freq in [x * .1 for x in range(10)]:
+            time.sleep(0.1)
+            self.comp.override_sdds_header.frequency = freq
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            sdds_header = self.getHeader(rcv)
+            self.assertEqual(sdds_header.freq, int(73786976294.838211*freq), "Received freq that did not match expected")
+            sb.stop()
+            
     def testDfdtOverride(self):
         self.octetConnect()
         sink = sb.DataSinkSDDS()
@@ -660,7 +728,6 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         MSD = raw_header[3]
         TT = raw_header[4]
         TTE = raw_header[5]
-         
         return Sdds.SddsHeader(FSN, SF, SoS, PP, OF, SS, DM, BPS, MSV, TTV, SSV, MSD, TT, TTE, DFDT, FREQ)
 
     def getCx(self, p):

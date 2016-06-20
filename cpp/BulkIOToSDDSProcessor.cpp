@@ -354,7 +354,11 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsHeaderFromSri() {
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsTimestamp() {
-	SDDSTime sdds_time(m_current_time.twsec - getStartOfYear(), m_current_time.tfsec);
+	double seconds_since_new_year = m_current_time.twsec - getStartOfYear();
+	if (seconds_since_new_year < 0) {
+		LOG_WARN(BulkIOToSDDSProcessor, "Cannot properly convert BulkIOTime to SDDS, the BulkIO timestamp is not from this year.");
+	}
+	SDDSTime sdds_time(seconds_since_new_year, m_current_time.tfsec);
 	m_sdds_template.set_SDDSTime(sdds_time);
 	if (not m_sdds_header_override.enabled) {
 		m_sdds_template.set_ttv((m_current_time.tcstatus == BULKIO::TCS_VALID));
@@ -370,7 +374,7 @@ time_t BulkIOToSDDSProcessor<STREAM_TYPE>::getStartOfYear(){
 	time(&systemtime);
 
 	/* System Time in a struct of day, month, year */
-	systemtime_struct = localtime(&systemtime);
+	systemtime_struct = gmtime(&systemtime);
 
 	/* Find time from EPOCH to Jan 1st of current year */
 	systemtime_struct->tm_sec=0;
@@ -378,7 +382,8 @@ time_t BulkIOToSDDSProcessor<STREAM_TYPE>::getStartOfYear(){
 	systemtime_struct->tm_hour=0;
 	systemtime_struct->tm_mday=1;
 	systemtime_struct->tm_mon=0;
-	return mktime(systemtime_struct);
+
+	return (mktime(systemtime_struct) - timezone);
 }
 
 // TODO: Reread the spec, this doesnt give it in the right units
