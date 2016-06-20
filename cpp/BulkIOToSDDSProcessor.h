@@ -47,14 +47,12 @@ private:
 	void setSddsHeaderFromSri();
 	void setSddsTimestamp();
 	time_t getStartOfYear();
-	double getClockDrift(std::list<bulkio::SampleTimestamp> ts, size_t numSamples);
 	void overrideSddsHeader();
 	void pushSri();
 
 	Resource_impl *m_parent;
 	bulkio::OutSDDSPort *m_sdds_out_port;
 	bool m_first_run;
-	double m_block_clock_drift;
 	boost::thread *m_processorThread;
 	bool m_shutdown, m_running, m_active_stream;
 	uint16_t m_vlan;

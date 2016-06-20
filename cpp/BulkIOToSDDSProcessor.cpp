@@ -5,7 +5,7 @@ PREPARE_LOGGING(BulkIOToSDDSProcessor<STREAM_TYPE>)
 
 template <class STREAM_TYPE>
 BulkIOToSDDSProcessor<STREAM_TYPE>::BulkIOToSDDSProcessor(Resource_impl *parent, bulkio::OutSDDSPort * dataSddsOut):
-m_parent(parent), m_sdds_out_port(dataSddsOut), m_first_run(true), m_block_clock_drift(0.0), m_processorThread(NULL), m_shutdown(false), m_running(false), m_active_stream(false),  m_vlan(0), m_seq(0) {
+m_parent(parent), m_sdds_out_port(dataSddsOut), m_first_run(true), m_processorThread(NULL), m_shutdown(false), m_running(false), m_active_stream(false),  m_vlan(0), m_seq(0) {
 
 	m_pkt_template.msg_name = NULL;
 	m_pkt_template.msg_namelen = 0;
@@ -240,7 +240,6 @@ size_t BulkIOToSDDSProcessor<STREAM_TYPE>::getDataPointer(char **dataPointer, bo
 	m_block = m_stream.read(SDDS_DATA_SIZE / sizeof(NATIVE_TYPE) / complex_scale);
 	if (!!m_block) {  //TODO: Document bang bang
 		m_current_time = m_block.getTimestamps().front().time;
-		m_block_clock_drift = getClockDrift(m_block.getTimestamps(), SDDS_DATA_SIZE / sizeof(NATIVE_TYPE) / complex_scale);
 
 		bytes_read = m_block.size() * sizeof(NATIVE_TYPE);
 		*dataPointer = reinterpret_cast<char*>(m_block.data());
@@ -320,6 +319,7 @@ template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::initializeSDDSHeader(){
 	m_sdds_template.pp = 0;  //PP Parity Packet
 	m_sdds_template.set_sscv(1); // Valid Synchronous Sample Clock (frequency & df/dt)
+	m_sdds_template.set_dfdt(0.0);
 
 	switch (sizeof(NATIVE_TYPE)) {
 	case sizeof(char):
@@ -362,7 +362,6 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsTimestamp() {
 	m_sdds_template.set_SDDSTime(sdds_time);
 	if (not m_sdds_header_override.enabled) {
 		m_sdds_template.set_ttv((m_current_time.tcstatus == BULKIO::TCS_VALID));
-		m_sdds_template.set_dfdt(m_block_clock_drift);
 	}
 }
 
@@ -384,25 +383,6 @@ time_t BulkIOToSDDSProcessor<STREAM_TYPE>::getStartOfYear(){
 	systemtime_struct->tm_mon=0;
 
 	return (mktime(systemtime_struct) - timezone);
-}
-
-// TODO: Reread the spec, this doesnt give it in the right units
-template <class STREAM_TYPE>
-double BulkIOToSDDSProcessor<STREAM_TYPE>::getClockDrift(std::list<bulkio::SampleTimestamp> ts, size_t numSamples) {
-	if (ts.size() == 1) {
-		return 0.0;
-	}
-
-	// The last time stamp does not indicate the time stamp of the last sample, it maps to the offset.
-	// If we collect 512 Samples, and the last time stamp is for 511th sample (indexed by 0) then we
-	// actually do have the last timestamp, otherwise we need to account for and estimate the last time stamp.
-	int num_samples_missing_timestamps = numSamples - (ts.back().offset + 1);
-	BULKIO::PrecisionUTCTime last_sample_ts = ts.back().time + num_samples_missing_timestamps * m_sri.xdelta;
-
-	double pkt_delta = last_sample_ts - ts.front().time;
-	double expected_pkt_delta = ts.front().time + numSamples*m_sri.xdelta - ts.front().time;
-
-	return expected_pkt_delta - pkt_delta;
 }
 
 template <class STREAM_TYPE>

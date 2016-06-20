@@ -121,7 +121,7 @@
       <value>0</value>
     </simple>
     <simple id="override_sdds_header::dfdt" name="dfdt" type="double">
-      <description>The df/dt field measures the rate at which the frequency is changing. The value represents the delta between the instantaneous frequency of the last SSC of the packet and the instantaneous frequency of the first SSC of the packet divided by the packet duration. Unless overridden, this is derived from bulkIO timestamps and sample xdelta.</description>
+      <description>The df/dt field measures the rate at which the frequency is changing. The value represents the delta between the instantaneous frequency of the last SSC of the packet and the instantaneous frequency of the first SSC of the packet divided by the packet duration. Unless overridden, this is set to 0.0</description>
       <value>0</value>
     </simple>
     <configurationkind kindtype="property"/>

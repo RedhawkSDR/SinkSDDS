@@ -110,14 +110,6 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
             
 
 # TODO
-#     def testTimeDrift(self):
-#         self.octetConnect()
-#         sb.start()
-#         fakeData = 100*[10];
-#         for x in range(100):
-#             self.sendPacket(fakeData, 1.0, True, eos=False)
-#          
-#         time.sleep(1)
 
     def testBulkIOTimeStamp(self):
         ts_start = bulkio_helpers.createCPUTimestamp()
