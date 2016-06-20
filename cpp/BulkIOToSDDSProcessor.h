@@ -15,6 +15,8 @@
 #define SDDS_HEADER_SIZE 56
 #define SSD_LENGTH 2
 #define AAD_LENGTH 20
+#define DATA_REF_STR_LITTLE 43981
+#define DATA_REF_STR_BIG 52651
 
 template <class STREAM_TYPE>
 class BulkIOToSDDSProcessor {

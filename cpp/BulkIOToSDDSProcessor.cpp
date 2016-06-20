@@ -52,7 +52,11 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::join() {
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsSettings(sdds_settings_struct settings) {
-	//TODO: Locking?
+	if (m_running) {
+		LOG_WARN(BulkIOToSDDSProcessor,"Cannot override the SDDS Settings while running.");
+		return;
+	}
+
 	m_sdds_template.sf = settings.standard_format;
 	m_sdds_template.of = settings.original_format;
 	m_sdds_template.ss = settings.spectral_sense;
@@ -65,7 +69,6 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::run() {
 	if (m_processorThread) {
 		if (m_running) {
 			LOG_ERROR(BulkIOToSDDSProcessor,"The BulkIO To SDDS Processor is already running, cannot start a new stream without first receiving an EOS!");
-			//TODO: Exception!
 			return;
 		} else {
 			join();
@@ -101,9 +104,7 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::overrideSddsHeader() {
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::callDetach() {
-	//TODO: If the component is shutting down is this going to cause issues?
 	// There are multiple places were detach can be called during the shutdown process so just return if we've already cleared out the stream.
-	// TODO: Probably should unify where the callDetach stuff is invoked so that there isn't multiple calls to it during shutDown.
 	if (m_active_stream) {
 		LOG_TRACE(BulkIOToSDDSProcessor, "Calling detach on current stream: " << m_stream.streamID());
 		m_sdds_out_port->detach(CORBA::string_dup(m_stream.streamID().c_str()));
@@ -221,8 +222,6 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 		if (m_stream.eos()) {
 			callDetach();
 		}
-
-		m_first_run = false; // TODO: Can we not set this every single time we run this loop? Seems silly.
 	}
 
 	m_first_run = true;
@@ -238,7 +237,7 @@ size_t BulkIOToSDDSProcessor<STREAM_TYPE>::getDataPointer(char **dataPointer, bo
 	size_t complex_scale = (m_stream.sri().mode == 0 ? 1 : 2);
 
 	m_block = m_stream.read(SDDS_DATA_SIZE / sizeof(NATIVE_TYPE) / complex_scale);
-	if (!!m_block) {  //TODO: Document bang bang
+	if (!!m_block) {  //Operator overloading for ! (bang) so know if there is no data, however we want to know if there is so we bang bang
 		m_current_time = m_block.getTimestamps().front().time;
 
 		bytes_read = m_block.size() * sizeof(NATIVE_TYPE);
@@ -349,6 +348,7 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsHeaderFromSri() {
 
 	if (m_first_run) {
 		m_sdds_template.sos = 1;
+		m_first_run = false;
 	}
 }
 
@@ -403,9 +403,9 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::pushSri() {
 	}
 
 	if (m_user_settings.endian_representation) {
-		addModifyKeyword<long>(&m_sri,"DATA_REF_STR",CORBA::Long(52651));
+		addModifyKeyword<long>(&m_sri,"DATA_REF_STR",CORBA::Long(DATA_REF_STR_BIG));
 	} else {
-		addModifyKeyword<long>(&m_sri,"DATA_REF_STR",CORBA::Long(43981)); //TODO: Remove magic numbers
+		addModifyKeyword<long>(&m_sri,"DATA_REF_STR",CORBA::Long(DATA_REF_STR_BIG));
 	}
 	m_sdds_out_port->pushSRI(m_sri, m_current_time);
 }
