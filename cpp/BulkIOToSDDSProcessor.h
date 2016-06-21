@@ -34,6 +34,9 @@ public:
 	void run();
 	void callDetach();
 	void callAttach();
+	void callAttach(BULKIO::dataSDDS::_ptr_type sdds_input_port);
+	void pushSri();
+	void pushSri(BULKIO::dataSDDS::_ptr_type sdds_input_port);
 	void setConnection(connection_t connection, uint16_t vlan);
 	void setOverrideHeaderSettings(override_sdds_header_struct sdds_header_override);
 	void setAttachSettings(sdds_attach_settings_struct attach_settings);
@@ -50,7 +53,6 @@ private:
 	void setSddsTimestamp();
 	time_t getStartOfYear();
 	void overrideSddsHeader();
-	void pushSri();
 
 	Resource_impl *m_parent;
 	bulkio::OutSDDSPort *m_sdds_out_port;

@@ -12,8 +12,6 @@
 
 PREPARE_LOGGING(SinkSDDS_i)
 
-//TODO: deal with the attach call, see if there are any callbacks available and have it call only if started.
-//TODO: Try and figure out a better way than calling each method on each processor
 SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
     SinkSDDS_base(uuid, label),
 	m_shortproc(this, dataSddsOut),
@@ -33,13 +31,31 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 	setPropertyConfigureImpl(network_settings, this, &SinkSDDS_i::set_network_settings_struct);
 	setPropertyConfigureImpl(override_sdds_header, this, &SinkSDDS_i::set_override_sdds_header_struct);
 
-	// TODO: I should set a connection listener for new connections made during start
-//	dataSddsOut->setNewConnectListener(this);
+	dataSddsOut->setNewConnectListener(this, &SinkSDDS_i::newConnectionMade);
 
 	memset(&m_connection, 0, sizeof(m_connection));
 }
 
+
 SinkSDDS_i::~SinkSDDS_i(){}
+
+void SinkSDDS_i::newConnectionMade(const char *connectionId) {
+	if (started()) {
+		ExtendedCF::UsesConnectionSequence_var currentConnections = dataSddsOut->connections();
+
+		for (size_t i = 0; i < currentConnections->length(); ++i) {
+			ExtendedCF::UsesConnection conn = currentConnections[i];
+			if (strcmp(connectionId, conn.connectionId) == 0) {
+				BULKIO::dataSDDS_var sdds_input_port = BULKIO::dataSDDS::_narrow(conn.port);
+
+				m_shortproc.pushSri(sdds_input_port);
+				m_floatproc.pushSri(sdds_input_port);
+				m_octetproc.pushSri(sdds_input_port);
+
+			}
+		}
+	}
+}
 
 void SinkSDDS_i::setFloatStream(bulkio::InFloatStream floatStream) {
 	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
@@ -96,6 +112,7 @@ void SinkSDDS_i::constructor(){}
 
 void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError) {
 	std::stringstream errorText;
+	int socket;
 
 	if (started()) {
 		LOG_WARN(SinkSDDS_i, "Already started, call to start ignored.");
@@ -114,7 +131,12 @@ void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError
 	m_shortproc.setAttachSettings(sdds_attach_settings);
 	m_octetproc.setAttachSettings(sdds_attach_settings);
 
-	int socket = setupSocket();
+	try {
+		socket = setupSocket();
+	} catch (...) {
+		socket = -1;
+	}
+
 	if (socket < 0) {
 		errorText << "Could not setup the output socket, cannot start without successful socket connection.";
 		LOG_ERROR(SinkSDDS_i, errorText.str());
@@ -163,7 +185,6 @@ int SinkSDDS_i::serviceFunction()
 }
 
 int SinkSDDS_i::setupSocket() {
-	// TODO: This probably throws an exception that needs to be caught and dealt with.
 	int retVal = -1;
 	std::string interface = network_settings.interface;
 	memset(&m_connection, 0, sizeof(m_connection));

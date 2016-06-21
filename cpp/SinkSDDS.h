@@ -25,6 +25,7 @@ class SinkSDDS_i : public SinkSDDS_base
         void setFloatStream(bulkio::InFloatStream floatStream);
         void setShortStream(bulkio::InShortStream shortStream);
         void setOctetStream(bulkio::InOctetStream octetStream);
+        void newConnectionMade(const char* connectionId);
 
     private:
         int setupSocket();

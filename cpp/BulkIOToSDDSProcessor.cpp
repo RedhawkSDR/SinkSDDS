@@ -113,10 +113,14 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::callDetach() {
 		LOG_TRACE(BulkIOToSDDSProcessor, "Was told to call detach but also told there is no active stream!");
 	}
 }
-
 template <class STREAM_TYPE>
-void BulkIOToSDDSProcessor<STREAM_TYPE>::callAttach() {
-	LOG_INFO(BulkIOToSDDSProcessor, "Calling attach");
+void BulkIOToSDDSProcessor<STREAM_TYPE>::callAttach(BULKIO::dataSDDS::_ptr_type sdds_input_port) {
+	LOG_DEBUG(BulkIOToSDDSProcessor, "Calling attach");
+	if (not m_active_stream) {
+		LOG_DEBUG(BulkIOToSDDSProcessor, "No active stream so attach will not go through");
+		return;
+	}
+
 	BULKIO::SDDSStreamDefinition sdef;
 
 	sdef.id = CORBA::string_dup(m_stream.streamID().c_str());
@@ -143,7 +147,15 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::callAttach() {
 	sdef.vlan = m_vlan;
 	sdef.port = ntohs(m_connection.addr.sin_port);
 
-	m_sdds_out_port->attach(sdef, m_attach_settings.user_id.c_str());
+	if (sdds_input_port == NULL) {
+		m_sdds_out_port->attach(sdef, m_attach_settings.user_id.c_str());
+	} else {
+		sdds_input_port->attach(sdef, m_attach_settings.user_id.c_str());
+	}
+}
+template <class STREAM_TYPE>
+void BulkIOToSDDSProcessor<STREAM_TYPE>::callAttach() {
+	callAttach((BULKIO::dataSDDS::_ptr_type)NULL);
 }
 
 template <class STREAM_TYPE>
@@ -397,7 +409,16 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setAttachSettings(sdds_attach_settings_
 
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::pushSri() {
-	LOG_INFO(BulkIOToSDDSProcessor, "Pushing SRI to downstream components");
+	pushSri((BULKIO::dataSDDS::_ptr_type)NULL);
+}
+template <class STREAM_TYPE>
+void BulkIOToSDDSProcessor<STREAM_TYPE>::pushSri(BULKIO::dataSDDS::_ptr_type sdds_input_port) {
+	LOG_DEBUG(BulkIOToSDDSProcessor, "Pushing SRI to downstream components");
+	if (not m_active_stream) {
+		LOG_DEBUG(BulkIOToSDDSProcessor, "No active stream so pushSRI will not go through");
+		return;
+	}
+
 	if (m_attach_settings.downstream_give_sri_priority) {
 		addModifyKeyword<long>(&m_sri,"BULKIO_SRI_PRIORITY",CORBA::Long(1));
 	}
@@ -405,9 +426,14 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::pushSri() {
 	if (m_user_settings.endian_representation) {
 		addModifyKeyword<long>(&m_sri,"DATA_REF_STR",CORBA::Long(DATA_REF_STR_BIG));
 	} else {
-		addModifyKeyword<long>(&m_sri,"DATA_REF_STR",CORBA::Long(DATA_REF_STR_BIG));
+		addModifyKeyword<long>(&m_sri,"DATA_REF_STR",CORBA::Long(DATA_REF_STR_LITTLE));
 	}
-	m_sdds_out_port->pushSRI(m_sri, m_current_time);
+
+	if (sdds_input_port == NULL) {
+		m_sdds_out_port->pushSRI(m_sri, m_current_time);
+	} else {
+		sdds_input_port->pushSRI(m_sri, m_current_time);
+	}
 }
 
 template class BulkIOToSDDSProcessor<bulkio::InShortStream>;
