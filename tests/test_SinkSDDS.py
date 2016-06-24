@@ -73,18 +73,10 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
     # launch the component.
     SPD_FILE = '../SinkSDDS.spd.xml'
 
-# TODO: Standard Format check
-# TODO: Original Format check
-# TODO: Spectral Sense check
-# TODO: df/dt drift test
 # TODO: Time code valid checks
-# TODO: Track down issue where RH cannot release a waveform, I believe it has to do with releasing the component when a stream is running
-# TODO: Write unit test for timing checks
-# TODO: Create property for overwriting SRI
-# TODO: SDDS Override
 
 
-    # This unit test takes FOREVER (going through all the packets) how can we speed this thing up?
+    # This unit test takes FOREVER which is why it is commented out (going through all the packets) how can we speed this thing up?
 #     def testSoS(self):
 #         self.octetConnect()
 #         sb.start()
@@ -100,17 +92,60 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 #             if (seq != 0 and seq % 32 == 31):
 #                  seq = seq + 1
 #             print h.fsn
-#                  
+#                   
 #         time.sleep(1) # Let the packets finish up.
-#         self.sendPacket(fakeData, 1.0, False)
-#         recv = self.getPacket(10000)
-#         h = self.getHeader(recv)
-#         
-#         self.assertTrue(h.SoS == 0, "SoS bit should not be set")
+#         for s in range(10):
+#             self.sendPacket(fakeData, 1.0, False)
+#             recv = self.getPacket(10000)
+#             h = self.getHeader(recv)
+#             self.assertTrue(h.SoS == 0, "SoS bit should not be set")
+        
+
+    def testSpectralSense(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        
+        for ss in range(2):
+            time.sleep(0.1)
+            self.comp.sdds_settings.spectral_sense = ss
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            sdds_header = self.getHeader(rcv)
+            self.assertEqual(sdds_header.SS, ss, "Received SS that did not match expected")
+            sb.stop()
             
-
-# TODO
-
+    def testOriginalFormat(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        
+        for of in range(2):
+            time.sleep(0.1)
+            self.comp.sdds_settings.original_format = of
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            sdds_header = self.getHeader(rcv)
+            self.assertEqual(sdds_header.OF, of, "Received OF that did not match expected")
+            sb.stop()
+            
+    def testStandardFormat(self):
+        self.octetConnect()
+        sink = sb.DataSinkSDDS()
+        
+        for sf in range(2):
+            time.sleep(0.1)
+            self.comp.sdds_settings.standard_format = sf
+            sb.start()
+            fakeData = 1024*[1];
+            self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+            rcv = self.getPacket()
+            sdds_header = self.getHeader(rcv)
+            self.assertEqual(sdds_header.SF, sf, "Received SF that did not match expected")
+            sb.stop()
+            
     def testBulkIOTimeStamp(self):
         ts_start = bulkio_helpers.createCPUTimestamp()
         self.source = sb.DataSource(startTime=ts_start.twsec+ts_start.tfsec)
@@ -300,6 +335,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
             self.assertEqual(bps, sum(sdds_header.bps), "Received BPS that did not match expected")
             sb.stop()
 
+    # TODO: Assert something
     def testEndianChange(self):
         self.octetConnect()
         sink = sb.DataSinkSDDS()
@@ -316,7 +352,6 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         fakeData = 1024*[1];
         self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
         time.sleep(1)
-        print(sink.sri().keywords)
         
         # Check the keywords
         self.comp.stop()
@@ -326,7 +361,6 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         time.sleep(0.1)
         self.source.push(fakeData, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
         time.sleep(0.1)
-        print(sink.sri().keywords)
         # Check the keywords
 
     def testStartStopStart(self):
@@ -628,7 +662,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         # Get data
         received_data = []
         try:
-             received_data = self.uclient.receive(socket_read_size)
+             received_data = self.uclient.receive(socket_read_size, timeout = 2)
         except socket.error as e:
             print "Socket read error: ", e
         
@@ -692,8 +726,8 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         SSV_MASK = (1 << 5 + 8)
         
         raw_header = struct.unpack('>HHHHQLLQ24B', p[:56])
-        SF = (raw_header[0] & SF_MASK) >> (7)
-        SoS = (raw_header[0] & SOS_MASK) >> (6+8)
+        SF = (raw_header[0] & SF_MASK) >> (7 + 8)
+        SoS = (raw_header[0] & SOS_MASK) >> (6 + 8)
         PP = (raw_header[0] & PP_MASK) >> (5 + 8)
         OF = (raw_header[0] & OF_MASK) >> (4 + 8)
         SS = (raw_header[0] & SS_MASK) >> (3 + 8)
