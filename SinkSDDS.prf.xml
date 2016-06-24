@@ -4,12 +4,12 @@
   <struct id="network_settings" mode="readwrite">
     <description>Settings for the network connection.</description>
     <simple id="network_settings::interface" mode="readwrite" name="interface" type="string">
-      <description>The network interface to bind to.  Do not include the VLAN in the interface name. (eg. For eth0.28 the interface should be set to &quot;eth0&quot; NOT &quot;eth0.28&quot;)</description>
+      <description>The network interface you intend to be present or blank if no check is needed. Do not include the VLAN in the interface name. (eg. For eth0.28 the interface should be set to &quot;eth0&quot; NOT &quot;eth0.28&quot;).</description>
       <value>eth0</value>
       <action type="external"/>
     </simple>
     <simple id="network_settings::ip_address" mode="readwrite" name="ip_address" type="string">
-      <description>unicast/multicast address or group ID to publish data to.</description>
+      <description>For the unicast case this is the destination IP address to send the UDP packets. For the multicast case this is the multicast group.</description>
       <value>127.0.0.1</value>
       <action type="external"/>
     </simple>

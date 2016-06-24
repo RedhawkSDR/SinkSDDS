@@ -259,7 +259,7 @@ int SinkSDDS_i::setupSocket() {
 	memset(&m_connection, 0, sizeof(m_connection));
 
 	LOG_INFO(SinkSDDS_i, "Setting connection info to Interface: " << network_settings.interface << " IP: " << network_settings.ip_address<< " Port: " << network_settings.port);
-	if (network_settings.ip_address.empty() || network_settings.interface.empty()) {
+	if (network_settings.ip_address.empty()) {
 		LOG_ERROR(SinkSDDS_i, "IP or interface was empty when trying to setup the socket connection.")
 		return retVal;
 	}

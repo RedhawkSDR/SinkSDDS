@@ -39,8 +39,8 @@ Properties and their descriptions are below, struct props are shown with their s
 
 | Struct Property      | Description  |
 | ------------- | -----|
-| interface | The network interface to bind to.  Do not include the VLAN in the interface name. (eg. For eth0.28 the interface should be set to "eth0" NOT "eth0.28") |
-| ip_address | unicast/multicast address or group ID to publish data to. |
+| interface | The network interface you intend to be present or blank if no check is needed. Do not include the VLAN in the interface name. (eg. For eth0.28 the interface should be set to "eth0" NOT "eth0.28"). |
+| ip_address | For the unicast case this is the destination IP address to send the UDP packets. For the multicast case this is the multicast group. |
 | port | UDP port used to publish data. (default SDDS port is: 29495)  |
 | vlan | UDP port used to publish data. |
 
