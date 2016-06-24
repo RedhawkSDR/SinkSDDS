@@ -100,7 +100,10 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 #             h = self.getHeader(recv)
 #             self.assertTrue(h.SoS == 0, "SoS bit should not be set")
         
-
+    def testEmptyInterfaceOctet(self):
+        self.comp.network_settings.interface = ''
+        self.dataOctetInTest(False)
+        
     def testSpectralSense(self):
         self.octetConnect()
         sink = sb.DataSinkSDDS()
