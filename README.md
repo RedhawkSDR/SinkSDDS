@@ -1,4 +1,4 @@
-# rh.SinkSDDS
+# REDHAWK rh.SinkSDDS
 
 ## Table of Contents
 
