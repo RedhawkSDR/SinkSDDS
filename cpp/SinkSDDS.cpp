@@ -12,6 +12,11 @@
 
 PREPARE_LOGGING(SinkSDDS_i)
 
+/**
+ * Constructor which sets up the stream and connection listeners as well as the property set callbacks.
+ * Also zeros out the connection struct.
+ *
+ */
 SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
     SinkSDDS_base(uuid, label),
 	m_shortproc(this, dataSddsOut),
@@ -36,9 +41,19 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 	memset(&m_connection, 0, sizeof(m_connection));
 }
 
-
+/**
+ * All cleanup occurs in the stop method which is called in both releaseObject and Stop.
+ */
 SinkSDDS_i::~SinkSDDS_i(){}
 
+/**
+ * This is the callback method when a new connection from the SDDS output port is made.
+ * Needed for any dynamic connections made while the component is running it will
+ * determine the port on the other end of the connection and update the SRI.
+ * This is normally done by BulkIO for the other BulkIO style ports but currently (2.0.1) this
+ * is not done and has been logged as a bug against the framework. CF-1517
+ * It seems as though the attach call is taken care of however.
+ */
 void SinkSDDS_i::newConnectionMade(const char *connectionId) {
 	if (started()) {
 		ExtendedCF::UsesConnectionSequence_var currentConnections = dataSddsOut->connections();
@@ -57,6 +72,11 @@ void SinkSDDS_i::newConnectionMade(const char *connectionId) {
 	}
 }
 
+/**
+ * Call back for a new stream coming into the float port. When a new stream
+ * arrives, it is only accepted if no other stream processor is active as this
+ * component only handles a single stream -> SDDS stream at a time.
+ */
 void SinkSDDS_i::setFloatStream(bulkio::InFloatStream floatStream) {
 	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
 		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << floatStream.streamID() << " there is already an active stream");
@@ -65,6 +85,11 @@ void SinkSDDS_i::setFloatStream(bulkio::InFloatStream floatStream) {
 	}
 }
 
+/**
+ * Call back for a new stream coming into the short port. When a new stream
+ * arrives, it is only accepted if no other stream processor is active as this
+ * component only handles a single stream -> SDDS stream at a time.
+ */
 void SinkSDDS_i::setShortStream(bulkio::InShortStream shortStream) {
 	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
 		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << shortStream.streamID() << " there is already an active stream");
@@ -73,6 +98,11 @@ void SinkSDDS_i::setShortStream(bulkio::InShortStream shortStream) {
 	}
 }
 
+/**
+ * Call back for a new stream coming into the octet port. When a new stream
+ * arrives, it is only accepted if no other stream processor is active as this
+ * component only handles a single stream -> SDDS stream at a time.
+ */
 void SinkSDDS_i::setOctetStream(bulkio::InOctetStream octetStream) {
 	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
 		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << octetStream.streamID() << " there is already an active stream");
@@ -81,6 +111,11 @@ void SinkSDDS_i::setOctetStream(bulkio::InOctetStream octetStream) {
 	}
 }
 
+/**
+ * Setter method called by the framework in place of the classic configure call. Will set the
+ * override sdds struct property only if the component has not already started. If you need
+ * to change these values while running a lock will need to be added.
+ */
 void SinkSDDS_i::set_override_sdds_header_struct(struct override_sdds_header_struct request) {
 	if (started()) {
 		LOG_WARN(SinkSDDS_i, "Cannot set the sdds header struct while component is running");
@@ -90,6 +125,11 @@ void SinkSDDS_i::set_override_sdds_header_struct(struct override_sdds_header_str
 	override_sdds_header = request;
 }
 
+/**
+ * Setter method called by the framework in place of the classic configure call. Will set the
+ * sdds settings struct only if the component has not already started. If you need
+ * to change these values while running a lock will need to be added.
+ */
 void SinkSDDS_i::set_sdds_settings_struct(struct sdds_settings_struct request) {
 	if (started()) {
 		LOG_WARN(SinkSDDS_i, "Cannot set the sdds settings while component is running");
@@ -99,6 +139,11 @@ void SinkSDDS_i::set_sdds_settings_struct(struct sdds_settings_struct request) {
 	sdds_settings = request;
 }
 
+/**
+ * Setter method called by the framework in place of the classic configure call. Will set the
+ * network settings struct only if the component has not already started. If you need
+ * to change these values while running a lock will need to be added.
+ */
 void SinkSDDS_i::set_network_settings_struct(struct network_settings_struct request) {
 	if (started()) {
 		LOG_WARN(SinkSDDS_i, "Cannot set the network settings while component is running");
@@ -108,8 +153,18 @@ void SinkSDDS_i::set_network_settings_struct(struct network_settings_struct requ
 	network_settings = request;
 }
 
+/**
+ * No redhawk specfic constructor code is necessary. All setup is done in the object constructor.
+ */
 void SinkSDDS_i::constructor(){}
 
+/**
+ * During start, the socket is opened and the three bulkIO processors are initialized.
+ * If there is an issue establishing the socket, an exception is raised and the bulkIO
+ * processors are not started. The starting of the bulkIO processors does nothing if
+ * the individual processor has not had a stream set upon it. If everything goes well,
+ * the base class' start method is called.
+ */
 void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError) {
 	std::stringstream errorText;
 	int socket;
@@ -156,6 +211,11 @@ void SinkSDDS_i::start() throw (CORBA::SystemException, CF::Resource::StartError
 	SinkSDDS_base::start();
 }
 
+/**
+ * Will tell all three bulkIO to SDDS processors to shutdown, which simply sets the shutDown boolean to true.
+ * Will then call the base class stop to open up the ports and free any blocking port read calls.
+ * Then the bulkio to sdds processors threads are joined and the socket closed.
+ */
 void SinkSDDS_i::stop () throw (CF::Resource::StopError, CORBA::SystemException) {
 	LOG_TRACE(SinkSDDS_i, "Entering stop method");
 	m_floatproc.shutdown();
@@ -176,14 +236,23 @@ void SinkSDDS_i::stop () throw (CF::Resource::StopError, CORBA::SystemException)
 	LOG_TRACE(SinkSDDS_i, "Exiting stop method");
 }
 
-// TODO: On release maybe call detach
+// TODO: On release maybe call detach for any connections to external applications, unsure if this is taken care of for me.
 
+/**
+ * This component does not use the service function and instead sets up its own threads in the start call.
+ * Finish is returned on start so that the service function is never called again.
+ */
 int SinkSDDS_i::serviceFunction()
 {
     LOG_DEBUG(SinkSDDS_i, "No service function in SinkSDDS component, returning FINISH");
     return FINISH;
 }
 
+/**
+ * Attempts to setup either a multicast socket or unicast socket depending on the IP address provided.
+ * Returns the socket file descriptor on success and -1 on failure. May also throw an exception in some
+ * failure cases so both should be checked for.
+ */
 int SinkSDDS_i::setupSocket() {
 	int retVal = -1;
 	std::string interface = network_settings.interface;

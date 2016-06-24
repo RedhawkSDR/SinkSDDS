@@ -2,31 +2,31 @@
 <!DOCTYPE properties PUBLIC "-//JTRS//DTD SCA V2.2.2 PRF//EN" "properties.dtd">
 <properties>
   <struct id="network_settings" mode="readwrite">
-    <description>Setting for the network connection.</description>
+    <description>Settings for the network connection.</description>
     <simple id="network_settings::interface" mode="readwrite" name="interface" type="string">
-      <description>Network interface used to send UDP/multicast, e.g. eth0, eth1, etc.</description>
+      <description>The network interface to bind to.  Do not include the VLAN in the interface name. (eg. For eth0.28 the interface should be set to &quot;eth0&quot; NOT &quot;eth0.28&quot;)</description>
       <value>eth0</value>
       <action type="external"/>
     </simple>
     <simple id="network_settings::ip_address" mode="readwrite" name="ip_address" type="string">
-      <description>UDP/multicast address or group ID to publish data to.</description>
+      <description>unicast/multicast address or group ID to publish data to.</description>
       <value>127.0.0.1</value>
       <action type="external"/>
     </simple>
     <simple id="network_settings::port" mode="readwrite" name="port" type="long">
-      <description>UDP/multicast port used to publish data.</description>
+      <description>UDP port used to publish data.</description>
       <value>29495</value>
       <action type="external"/>
     </simple>
     <simple id="network_settings::vlan" mode="readwrite" name="vlan" type="ushort">
-      <description>Virtual Lan address to use. Default to 0</description>
+      <description>Virtual Lan address to use. Ignored if set to 0.</description>
       <value>0</value>
       <action type="external"/>
     </simple>
     <configurationkind kindtype="property"/>
   </struct>
   <struct id="sdds_settings" mode="readwrite">
-    <description>SDDS Packet Settings</description>
+    <description>Settings related to standard fields in the SDDS Packet or data portion which cannot be derived from BulkIO metadata.</description>
     <simple id="sdds_settings::standard_format" mode="readwrite" name="standard_format" type="short">
       <description>The SF (Standard Format) field is used to identify whether or not the packet conforms to the SDDS standard. For SDDS standard packets, the SF bit shall be set to a value of 1. The SF bit shall be set to a value of zero for non-standard packets.</description>
       <value>1</value>
@@ -57,6 +57,7 @@
     <configurationkind kindtype="property"/>
   </struct>
   <struct id="sdds_attach_settings" mode="readwrite" name="sdds_attach_settings">
+    <description>Settings related to the BulkIO based SDDS Attach and detach API.</description>
     <simple id="sdds_attach_settings::time_tag_valid" name="time_tag_valid" type="boolean">
       <description>Used only in the attach call. The attach call is made prior to the bulkIO TimeStamp being available so the true BULKIO::TCS_VALID flag cannot be checked. This is only used during the call to attach.</description>
       <value>true</value>
@@ -73,8 +74,9 @@
     <configurationkind kindtype="property"/>
   </struct>
   <struct id="override_sdds_header" mode="readwrite" name="override_sdds_header">
+    <description>Used to optionally override values in the SDDS header which would otherwise be derived from BulkIO metadata or set to a reasonable value.</description>
     <simple id="override_sdds_header::enabled" name="enabled" type="boolean">
-      <description>If true, the values in this struct will override the default values used by this component. Each property should have a description which explains what values would generally be used.</description>
+      <description>If true, the values in this struct will override the default values used by this component. Each property should have a description which explains what values would otherwise be used.</description>
       <value>false</value>
     </simple>
     <simple id="override_sdds_header::dmode" name="dmode" type="ushort">

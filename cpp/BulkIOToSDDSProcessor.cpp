@@ -3,6 +3,12 @@
 template <class STREAM_TYPE>
 PREPARE_LOGGING(BulkIOToSDDSProcessor<STREAM_TYPE>)
 
+/**
+ * Constructor for the templated bulkIO to SDDS processor class. Initializes the SDDS header with default values and
+ * sets up the scatter / gather array for the UDP socket pushes.
+ * @param parent The parent class containing this BulkIO to SDDS processor. Needed only to determine if the processing thread should start.
+ * @param dataSddsOut The parent class' SDDS output port used to push SRI and call attach / detach.
+ */
 template <class STREAM_TYPE>
 BulkIOToSDDSProcessor<STREAM_TYPE>::BulkIOToSDDSProcessor(Resource_impl *parent, bulkio::OutSDDSPort * dataSddsOut):
 m_parent(parent), m_sdds_out_port(dataSddsOut), m_first_run(true), m_processorThread(NULL), m_shutdown(false), m_running(false), m_active_stream(false),  m_vlan(0), m_seq(0) {
@@ -26,19 +32,31 @@ m_parent(parent), m_sdds_out_port(dataSddsOut), m_first_run(true), m_processorTh
 	initializeSDDSHeader();
 }
 
+/**
+ * Prior to destroying this instance, the parent class should be stopped to free up the
+ * port locks. This destructor will never return unless the blocking port locks are lifted.
+ */
 template <class STREAM_TYPE>
 BulkIOToSDDSProcessor<STREAM_TYPE>::~BulkIOToSDDSProcessor() {
 	// Lets hope someone released the port lock
 	if (m_processorThread) {
+		shutdown();
 		join();
 	}
 }
 
+/**
+ * Returns true if an active stream has been set on this instance, false otherwise.
+ */
 template <class STREAM_TYPE>
 bool BulkIOToSDDSProcessor<STREAM_TYPE>::isActive() {
 	return m_active_stream;
 }
 
+/**
+ * If the processing thread is running, this joins the thread, deletes the boost thread object
+ * and sets the thread pointer to NULL. If the thread is not running, it does nothing.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::join() {
 	if (m_processorThread) {
@@ -50,6 +68,10 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::join() {
 	}
 }
 
+/**
+ * Sets the SDDS header values according to the sdds settings provided.
+ * Can only be set if the processing thread is not running.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsSettings(sdds_settings_struct settings) {
 	if (m_running) {
@@ -63,6 +85,10 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsSettings(sdds_settings_struct se
 	m_user_settings = settings;
 }
 
+/**
+ * If there is an active stream to process, this will inform connections via the BulkIO SDDS attach call and kick off a new thread
+ * to perform the processing. If there is no active stream to process this call will simply return.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::run() {
 	LOG_TRACE(BulkIOToSDDSProcessor,"Entering the Run Method");
@@ -86,6 +112,10 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::run() {
 	LOG_TRACE(BulkIOToSDDSProcessor,"Leaving the Run Method");
 }
 
+/**
+ * If the SDDS header override property is set, this will set the SDDS header to the provided values.
+ * It does nothing if the user has not set the override to enabled.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::overrideSddsHeader() {
 	if (m_sdds_header_override.enabled) {
@@ -102,6 +132,9 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::overrideSddsHeader() {
 	}
 }
 
+/**
+ * Will call detach if there is an active stream, then unset the active stream flag.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::callDetach() {
 	// There are multiple places were detach can be called during the shutdown process so just return if we've already cleared out the stream.
@@ -113,6 +146,11 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::callDetach() {
 		LOG_TRACE(BulkIOToSDDSProcessor, "Was told to call detach but also told there is no active stream!");
 	}
 }
+
+/**
+ * Calls attach only on the provided BulkIO SDDS input port. If the provided input port is NULL,
+ * it will call attach on all connections using the previously provided SDDS output port.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::callAttach(BULKIO::dataSDDS::_ptr_type sdds_input_port) {
 	LOG_DEBUG(BulkIOToSDDSProcessor, "Calling attach");
@@ -153,11 +191,18 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::callAttach(BULKIO::dataSDDS::_ptr_type 
 		sdds_input_port->attach(sdef, m_attach_settings.user_id.c_str());
 	}
 }
+
+/**
+ * Calls attach(NULL) which will in turn call attach on the sdds output port provided previously.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::callAttach() {
 	callAttach((BULKIO::dataSDDS::_ptr_type)NULL);
 }
 
+/**
+ * Sets the socket connection used when sending SDDS packets and the vlan to use for attach calls.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setConnection(connection_t connection, uint16_t vlan) {
 	m_connection = connection;
@@ -167,11 +212,19 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setConnection(connection_t connection, 
 	m_pkt_template.msg_namelen = sizeof(m_connection.addr);
 }
 
+/**
+ * Simply sets the boolean shutdown field to true so that the run thread will stop on its next iteration.
+ * It is possible that the run thread can get stuck in a blocking BulkIO read but a components stop() call will
+ * force a return of the blocking read.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::shutdown() {
 	m_shutdown = true;
 }
 
+/**
+ * Sets the active stream and starts the processing thread if the component has also started.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setStream(STREAM_TYPE stream) {
 	LOG_INFO(BulkIOToSDDSProcessor,"Received new stream: " << stream.streamID());
@@ -191,6 +244,11 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setStream(STREAM_TYPE stream) {
 	if (m_parent->started()) { run(); }
 }
 
+/**
+ * Removes the active stream and shuts down the processing thread. It is possible
+ * that the processing thread can get stuck in a blocking BulkIO read if no data is being sent
+ * and an EOS isn't received.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::removeStream(STREAM_TYPE stream) {
 	LOG_INFO(BulkIOToSDDSProcessor,"Removing stream: " << stream.streamID());
@@ -204,6 +262,12 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::removeStream(STREAM_TYPE stream) {
 	}
 }
 
+/**
+ * The internal run method is the entry point for the processing thread. Will loop infinitely until there is an issue sending a packet,
+ * it has received an EOS, or is told to shutdown.
+ * Under normal operation, this loop will receive data from the BulkIO stream via a call to getDataPointer and send the received data payload
+ * via the socket connection along with the appropriate SDDS header data. SRI is pushed across the SDDS port if needed as well.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 	LOG_TRACE(BulkIOToSDDSProcessor,"Entering the _run Method");
@@ -231,6 +295,10 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 			continue;
 		}
 
+		if (m_first_run) {
+			m_first_run = false;
+		}
+
 		if (m_stream.eos()) {
 			callDetach();
 		}
@@ -242,6 +310,11 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 	LOG_TRACE(BulkIOToSDDSProcessor,"Exiting the _run Method");
 }
 
+/**
+ * Attempts to read 1024 bytes of data from the BulkIO stream API and return a pointer to the data read.
+ * Updates the provided sriChanged flag and sets the class variables for the current bulkIO time and current SRI.
+ * If the user has requested byte swapping the received data is swapped in place here.
+ */
 template <class STREAM_TYPE>
 size_t BulkIOToSDDSProcessor<STREAM_TYPE>::getDataPointer(char **dataPointer, bool &sriChanged) {
 	LOG_TRACE(BulkIOToSDDSProcessor,"Entering getDataPointer Method");
@@ -289,16 +362,23 @@ size_t BulkIOToSDDSProcessor<STREAM_TYPE>::getDataPointer(char **dataPointer, bo
 	return bytes_read;
 }
 
+/**
+ * Takes the provided data buffer and sends it along with the SDDS header, increasing the SDDS sequence number and resetting the start
+ * of stream flag when needed.
+ *
+ * Since the SDDS spec specifies the payload size to be exactly 1024 bytes there are four different situations covered here.
+ * 1. We've read exactly 1024 bytes. We get exactly one packets worth and this method runs only once.
+ * 2. We've read exactly 2*1024 bytes. Occurs when the mode is changed out from under us, this method runs twice recursively.
+ *    Decreasing the num_bytes by 1024 on each consecutive run. The negative affect is that both packets will have the same timestamp.
+ * 3. We've read less than 1024 bytes, occurs when the stream is changing. In this case the data is padded with zeros.
+ * 4. We've read more than 1024, but less than 2*1024. A special case of 2 & 3.
+ *
+ * dataBlocks sized less than 1024 are dealt with via the scatter gather concept. We keep 3 buffers, the SDDS header, the SDDS payload,
+ * and a buffer of zeros sized at 1024. We tell the linux kernel to create a UDP packet consisting of each of these buffers and simply
+ * vary the size of the latter two based on the provided buffer length.
+ */
 template <class STREAM_TYPE>
 int BulkIOToSDDSProcessor<STREAM_TYPE>::sendPacket(char* dataBlock, int num_bytes) {
-	/**
-	 * Four different situations covered here.
-	 * 1. We've read exactly 1024 bytes. Occurs when the mode is real, we get exactly one packets worth and this method runs only once.
-	 * 2. We've read exactly 2*1024 bytes. Occurs when the mode is complex, this method runs twice recursively. Decreasing the num_bytes
-	 * 3. We've read less less than 1024 bytes, occurs when the stream is changing.
-	 * 4. We've read more than 1024, but less than 2*1024.
-	 */
-
 	LOG_TRACE(BulkIOToSDDSProcessor,"sendPacket called, told to send " << num_bytes <<  " bytes");
 	if (num_bytes <= 0)
 		return 0;
@@ -326,6 +406,9 @@ int BulkIOToSDDSProcessor<STREAM_TYPE>::sendPacket(char* dataBlock, int num_byte
 	return sendPacket(dataBlock + SDDS_DATA_SIZE, num_bytes - m_msg_iov[1].iov_len);
 }
 
+/**
+ * Initializes the SDDS header with the default values and sets the dmode.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::initializeSDDSHeader(){
 	m_sdds_template.pp = 0;  //PP Parity Packet
@@ -349,6 +432,9 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::initializeSDDSHeader(){
 	for (size_t i = 0; i < AAD_LENGTH; ++i) { m_sdds_template.aad[0] = 0; }
 }
 
+/**
+ * Sets the complex flag, frequency field, and sos flag based on the SRI unless otherwise overridden by the user.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsHeaderFromSri() {
 	if (not m_sdds_header_override.enabled) {
@@ -357,13 +443,15 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsHeaderFromSri() {
 		double freq = (m_sri.mode == 1) ? (2.0 / m_sri.xdelta) : (1.0 / m_sri.xdelta);
 		m_sdds_template.set_freq(freq);
 	}
-
 	if (m_first_run) {
 		m_sdds_template.sos = 1;
-		m_first_run = false;
 	}
 }
 
+/**
+ * Sets the SDDS timestamp field and the time tag valid field based on the received bulkIO time stamp
+ * and the bulkio tcstatus flag.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsTimestamp() {
 	double seconds_since_new_year = m_current_time.twsec - getStartOfYear();
@@ -377,6 +465,10 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setSddsTimestamp() {
 	}
 }
 
+/**
+ * Returns the UTC unix timestamp (number of seconds since 1/1/1970) for the date 1/1/<current year>
+ * Needed for the SDDS timestamp field
+ */
 template <class STREAM_TYPE>
 time_t BulkIOToSDDSProcessor<STREAM_TYPE>::getStartOfYear(){
 	time_t systemtime;
@@ -387,6 +479,7 @@ time_t BulkIOToSDDSProcessor<STREAM_TYPE>::getStartOfYear(){
 	/* System Time in a struct of day, month, year */
 	systemtime_struct = gmtime(&systemtime);
 
+	// TODO: Does this logic work on new years day?
 	/* Find time from EPOCH to Jan 1st of current year */
 	systemtime_struct->tm_sec=0;
 	systemtime_struct->tm_min=0;
@@ -397,20 +490,35 @@ time_t BulkIOToSDDSProcessor<STREAM_TYPE>::getStartOfYear(){
 	return (mktime(systemtime_struct) - timezone);
 }
 
+/**
+ * Stores the sdds_header_override struct to be used when determing the values of the SDDS header.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setOverrideHeaderSettings(override_sdds_header_struct sdds_header_override) {
 	m_sdds_header_override = sdds_header_override;
 }
 
+/**
+ * Stores the attach settings to be used during future attach calls.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::setAttachSettings(sdds_attach_settings_struct attach_settings) {
 	m_attach_settings = attach_settings;
 }
 
+/**
+ * Calls pushSRI(NULL) which in turn will call pushSRI on all connected ports after adding any requested keywords.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::pushSri() {
 	pushSri((BULKIO::dataSDDS::_ptr_type)NULL);
 }
+
+/**
+ * Calls pushSRI on the port specified, or all connected ports if NULL is provided. Will add the
+ * BULKIO_SRI_PRIORITY keyword if downstream_give_sri_priority property set to true and the
+ * DATA_REF_STR to the appropriate endianness type.
+ */
 template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::pushSri(BULKIO::dataSDDS::_ptr_type sdds_input_port) {
 	LOG_DEBUG(BulkIOToSDDSProcessor, "Pushing SRI to downstream components");
@@ -436,6 +544,11 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::pushSri(BULKIO::dataSDDS::_ptr_type sdd
 	}
 }
 
+/**
+ * Since this is a templated class with a cpp and headerfile, the cpp
+ * file must declare all the template types to generate. In this case it is
+ * simply octet, float, and short port types.
+ */
 template class BulkIOToSDDSProcessor<bulkio::InShortStream>;
 template class BulkIOToSDDSProcessor<bulkio::InFloatStream>;
 template class BulkIOToSDDSProcessor<bulkio::InOctetStream>;
