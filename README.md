@@ -3,14 +3,43 @@
 ## Table of Contents
 
 * [Description](#description)
+* [Branches and Tags](#branches-and-tags)
+* [REDHAWK Version Compatibility](#redhawk-version-compatibility)
+* [Installation Instructions](#installation-instructions)
 * [Design](#design)
 * [Properties](#properties)
 * [SRI Keywords](#sri-keywords)
-* [Known Issues](#known-issuesi)
+* [Known Issues](#known-issues)
+* [Copyrights](#copyrights)
+* [License](#license)
 
 ## Description
 
 The rh.SinkSDDS component will take in a single BulkIO stream on one of the three input ports and serve a single SDDS stream over the provided multicast or unicast address. The component is currently limited to a single stream. The component will perform a BulkIO attach call on any existing connections at start and will call attach on any dynamically made connections during runtime. BulkIO SRI is used to set the SDDS header information unless overridden via properties and the SRI is passed across the SDDS BulkIO connection to any downstream components. See the [Properties](#properties) section for information on overriding SDDS header values and the [SRI Keywords](#sri-keywords) section for information on KEYWORDs created.
+
+## Branches and Tags
+
+All REDHAWK core assets use the same branching and tagging policy. Upon release,
+the `master` branch is rebased with the specific commit released, and that
+commit is tagged with the asset version number. For example, the commit released
+as version 1.0.0 is tagged with `1.0.0`.
+
+Development branches (i.e. `develop` or `develop-X.X`, where *X.X* is an asset
+version number) contain the latest unreleased development code for the specified
+version. If no version is specified (i.e. `develop`), the branch contains the
+latest unreleased development code for the latest released version.
+
+## REDHAWK Version Compatibility
+
+| Asset Version | Minimum REDHAWK Version Required |
+| ------------- | -------------------------------- |
+| 1.x           | 2.0                              |
+
+## Installation Instructions
+
+To build from source, run the `build.sh` script found at the top level
+directory. To install to $SDRROOT, run `build.sh install`. Note: root privileges
+(`sudo`) may be required to install.
 
 ## Design
 
@@ -88,3 +117,14 @@ The SinkSDDS component does not check for or react to any specific keywords. Any
 
 * Calculation of dfdt field - Currently the df/dt field in the SDDS header defaults to zero unless overridden by the user. The df/dt field is supposed to represents the change in sample clock frequency in units of Hz/sec between the first and last sample in the SDDS packet. This exact information is not found in BulkIO so a direct mapping is not possible however BulkIO does allow you to check if multiple timestamps are available and some estimation based on that may be possible.
 * Change of BulkIO Mode - Changing the BulkIO mode field mid-stream is not recommended, a user should send an EOS and start a new stream with the changed mode. The component will gracefully deal with a mode change though with the following outcomes. Going from Real->Complex this will cause 1 SDDS packets worth of data to have an incorrect time stamp. Going from Complex->Real will cause a single packet to be erroneously padded with zeros.
+
+## Copyrights
+
+This work is protected by Copyright. Please refer to the
+[Copyright File](COPYRIGHT) for updated copyright information.
+
+## License
+
+REDHAWK rh.SinkSDDS is licensed under the GNU Lesser General Public License
+(LGPL).
+
