@@ -99,6 +99,52 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 #             recv = self.getPacket(10000)
 #             h = self.getHeader(recv)
 #             self.assertTrue(h.SoS == 0, "SoS bit should not be set")
+
+    def testEosPushWhileStopped(self):
+        self.octetConnect()
+        
+        short_source = sb.DataSource()
+        short_source.connect(self.comp, usesPortName='shortOut')
+        
+        sb.start()
+        
+        goodData1 = 1024*[1];
+        goodData2 = 1024*[3];
+
+        self.source.push(goodData1, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData1, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        
+        self.comp.stop()
+        
+        # Push an empty packet with EOS
+        self.source.push([], EOS=True, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        
+        self.comp.start()
+        
+        # Push a new stream with new stream ID
+        self.source.push(goodData2, EOS=False, streamID="New Stream", sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData2, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        
+    def testEosPush(self):
+        self.octetConnect()
+        
+        short_source = sb.DataSource()
+        short_source.connect(self.comp, usesPortName='shortOut')
+        
+        sb.start()
+        
+        goodData1 = 1024*[1];
+        goodData2 = 1024*[3];
+
+        self.source.push(goodData1, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData1, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        
+        # Push an empty packet with EOS
+        self.source.push([], EOS=True, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        
+        # Push a new stream with new stream ID
+        self.source.push(goodData2, EOS=False, streamID="New Stream", sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData2, list(struct.unpack('1024B', self.getPacket()[-1024:])))
         
     def testEmptyInterfaceOctet(self):
         self.comp.network_settings.interface = ''
@@ -665,7 +711,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         # Get data
         received_data = []
         try:
-             received_data = self.uclient.receive(socket_read_size, timeout = 2)
+             received_data = self.uclient.receive(socket_read_size, timeout = 5)
         except socket.error as e:
             print "Socket read error: ", e
         

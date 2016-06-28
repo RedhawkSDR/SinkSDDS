@@ -284,7 +284,12 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 			pushSri();
 			setSddsHeaderFromSri();
 		}
+
+		// It could be that we were stopped, it could also be we got an empty packet with an EOS.
 		if (not bytes_read) {
+			if (m_stream.eos()) {
+				callDetach();
+			}
 			shutdown();
 			continue;
 		}
@@ -299,8 +304,11 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 			m_first_run = false;
 		}
 
+		// This is for the case where we received a full packet but it came with an EOS flag attached.
 		if (m_stream.eos()) {
 			callDetach();
+			shutdown();
+			continue;
 		}
 	}
 
