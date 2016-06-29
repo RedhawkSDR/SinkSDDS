@@ -140,8 +140,12 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::callDetach() {
 	// There are multiple places were detach can be called during the shutdown process so just return if we've already cleared out the stream.
 	if (m_active_stream) {
 		LOG_TRACE(BulkIOToSDDSProcessor, "Calling detach on current stream: " << m_stream.streamID());
-		m_sdds_out_port->detach(CORBA::string_dup(m_stream.streamID().c_str()));
-		m_active_stream = false;
+		m_active_stream = false; // Set this before the detach call in case it throws an exception
+		try {
+			m_sdds_out_port->detach(CORBA::string_dup(m_stream.streamID().c_str()));
+		} catch (...) {
+			LOG_ERROR(BulkIOToSDDSProcessor, "Error occurred while calling detach");
+		}
 	} else {
 		LOG_TRACE(BulkIOToSDDSProcessor, "Was told to call detach but also told there is no active stream!");
 	}
