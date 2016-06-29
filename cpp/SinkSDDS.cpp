@@ -78,6 +78,7 @@ void SinkSDDS_i::newConnectionMade(const char *connectionId) {
  * component only handles a single stream -> SDDS stream at a time.
  */
 void SinkSDDS_i::setFloatStream(bulkio::InFloatStream floatStream) {
+	boost::unique_lock<boost::mutex> lock(m_new_stream_lock);
 
 	if (getNumberOfActiveStreams() != 1) {
 		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream: " << floatStream.streamID());
@@ -94,6 +95,7 @@ void SinkSDDS_i::setFloatStream(bulkio::InFloatStream floatStream) {
  * component only handles a single stream -> SDDS stream at a time.
  */
 void SinkSDDS_i::setShortStream(bulkio::InShortStream shortStream) {
+	boost::unique_lock<boost::mutex> lock(m_new_stream_lock);
 
 	if (getNumberOfActiveStreams() != 1) {
 		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream: " << shortStream.streamID());
@@ -110,6 +112,7 @@ void SinkSDDS_i::setShortStream(bulkio::InShortStream shortStream) {
  * component only handles a single stream -> SDDS stream at a time.
  */
 void SinkSDDS_i::setOctetStream(bulkio::InOctetStream octetStream) {
+	boost::unique_lock<boost::mutex> lock(m_new_stream_lock);
 
 	if (getNumberOfActiveStreams() != 1) {
 		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream: " << octetStream.streamID());

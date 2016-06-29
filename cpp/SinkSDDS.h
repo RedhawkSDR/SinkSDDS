@@ -31,6 +31,7 @@ class SinkSDDS_i : public SinkSDDS_base
         int setupSocket();
         size_t getNumberOfActiveStreams();
         connection_t m_connection;
+        boost::mutex m_new_stream_lock;
 
         BulkIOToSDDSProcessor<bulkio::InShortStream> m_shortproc;
         BulkIOToSDDSProcessor<bulkio::InFloatStream> m_floatproc;
