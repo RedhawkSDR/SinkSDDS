@@ -29,6 +29,7 @@ class SinkSDDS_i : public SinkSDDS_base
 
     private:
         int setupSocket();
+        size_t getNumberOfActiveStreams();
         connection_t m_connection;
 
         BulkIOToSDDSProcessor<bulkio::InShortStream> m_shortproc;

@@ -78,9 +78,12 @@ void SinkSDDS_i::newConnectionMade(const char *connectionId) {
  * component only handles a single stream -> SDDS stream at a time.
  */
 void SinkSDDS_i::setFloatStream(bulkio::InFloatStream floatStream) {
-	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
-		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << floatStream.streamID() << " there is already an active stream");
+
+	if (getNumberOfActiveStreams() != 1) {
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream: " << floatStream.streamID());
+		floatStream.disable();
 	} else {
+		LOG_DEBUG(SinkSDDS_i, "Passing new float stream to proc: " << floatStream.streamID());
 		m_floatproc.setStream(floatStream);
 	}
 }
@@ -91,9 +94,12 @@ void SinkSDDS_i::setFloatStream(bulkio::InFloatStream floatStream) {
  * component only handles a single stream -> SDDS stream at a time.
  */
 void SinkSDDS_i::setShortStream(bulkio::InShortStream shortStream) {
-	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
-		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << shortStream.streamID() << " there is already an active stream");
+
+	if (getNumberOfActiveStreams() != 1) {
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream: " << shortStream.streamID());
+		shortStream.disable();
 	} else {
+		LOG_DEBUG(SinkSDDS_i, "Passing new short stream to proc: " << shortStream.streamID());
 		m_shortproc.setStream(shortStream);
 	}
 }
@@ -104,9 +110,12 @@ void SinkSDDS_i::setShortStream(bulkio::InShortStream shortStream) {
  * component only handles a single stream -> SDDS stream at a time.
  */
 void SinkSDDS_i::setOctetStream(bulkio::InOctetStream octetStream) {
-	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
-		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << octetStream.streamID() << " there is already an active stream");
+
+	if (getNumberOfActiveStreams() != 1) {
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream: " << octetStream.streamID());
+		octetStream.disable();
 	} else {
+		LOG_DEBUG(SinkSDDS_i, "Passing new octet stream to proc: " << octetStream.streamID());
 		m_octetproc.setStream(octetStream);
 	}
 }
@@ -282,4 +291,46 @@ int SinkSDDS_i::setupSocket() {
 	LOG_INFO(SinkSDDS_i, "Created socket (fd: " << m_connection.sock << ") connection on: " << interface << " IP: " << network_settings.ip_address << " Port: " << network_settings.port);
 
 	return m_connection.sock;
+}
+
+/**
+ * Counts and returns the number of active streams according to BulkIO. If instead we were to check
+ * stream processors, it may result in a race condition if a stream is ended and a new one
+ * immediately started. Streams which come in while we are processing an active stream are marked
+ * disabled and never serviced.
+ */
+size_t SinkSDDS_i::getNumberOfActiveStreams() {
+	size_t numberOfActiveStreams = 0;
+	LOG_INFO(SinkSDDS_i, "Checking how many active streams there are");
+
+	bulkio::InFloatPort::StreamList floatStreamList = dataFloatIn->getStreams();
+	bulkio::InFloatPort::StreamList::iterator float_it;
+
+	for (float_it = floatStreamList.begin(); float_it != floatStreamList.end(); ++float_it) {
+		if ((*float_it).enabled()) {
+			++numberOfActiveStreams;
+			LOG_INFO(SinkSDDS_i, "Active float stream found counting it: " << (*float_it).streamID());
+		}
+	}
+
+	bulkio::InShortPort::StreamList shortStreamList = dataShortIn->getStreams();
+	bulkio::InShortPort::StreamList::iterator short_it;
+	for (short_it = shortStreamList.begin(); short_it != shortStreamList.end(); ++short_it) {
+		if ((*short_it).enabled()) {
+			++numberOfActiveStreams;
+			LOG_INFO(SinkSDDS_i, "Active short stream found counting it: " << (*short_it).streamID());
+		}
+	}
+
+	bulkio::InOctetPort::StreamList octetStreamList = dataOctetIn->getStreams();
+	bulkio::InOctetPort::StreamList::iterator octet_it;
+	for (octet_it = octetStreamList.begin(); octet_it != octetStreamList.end(); ++octet_it) {
+		if ((*octet_it).enabled()) {
+			++numberOfActiveStreams;
+			LOG_INFO(SinkSDDS_i, "Active octet stream found counting it: " << (*octet_it).streamID());
+		}
+	}
+
+	LOG_INFO(SinkSDDS_i, "Found a total of " << numberOfActiveStreams << " active streams");
+	return numberOfActiveStreams;
 }
