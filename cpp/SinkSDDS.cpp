@@ -310,7 +310,7 @@ size_t SinkSDDS_i::getNumberOfActiveStreams() {
 	bulkio::InFloatPort::StreamList::iterator float_it;
 
 	for (float_it = floatStreamList.begin(); float_it != floatStreamList.end(); ++float_it) {
-		if ((*float_it).enabled()) {
+		if ((*float_it).enabled() && not (*float_it).eos()) {
 			++numberOfActiveStreams;
 			LOG_INFO(SinkSDDS_i, "Active float stream found counting it: " << (*float_it).streamID());
 		}
@@ -319,16 +319,17 @@ size_t SinkSDDS_i::getNumberOfActiveStreams() {
 	bulkio::InShortPort::StreamList shortStreamList = dataShortIn->getStreams();
 	bulkio::InShortPort::StreamList::iterator short_it;
 	for (short_it = shortStreamList.begin(); short_it != shortStreamList.end(); ++short_it) {
-		if ((*short_it).enabled()) {
+		if ((*short_it).enabled() && not (*short_it).eos()) {
 			++numberOfActiveStreams;
 			LOG_INFO(SinkSDDS_i, "Active short stream found counting it: " << (*short_it).streamID());
+			std::cout << "YLB Short stream EOS = " << (*short_it).eos() << std::endl;
 		}
 	}
 
 	bulkio::InOctetPort::StreamList octetStreamList = dataOctetIn->getStreams();
 	bulkio::InOctetPort::StreamList::iterator octet_it;
 	for (octet_it = octetStreamList.begin(); octet_it != octetStreamList.end(); ++octet_it) {
-		if ((*octet_it).enabled()) {
+		if ((*octet_it).enabled() && not (*octet_it).eos()) {
 			++numberOfActiveStreams;
 			LOG_INFO(SinkSDDS_i, "Active octet stream found counting it: " << (*octet_it).streamID());
 		}

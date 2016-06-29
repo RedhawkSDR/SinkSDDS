@@ -93,7 +93,7 @@ template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::run() {
 	LOG_TRACE(BulkIOToSDDSProcessor,"Entering the Run Method");
 	if (m_processorThread) {
-		if (m_running) {
+		if (m_running && not m_stream.eos()) {
 			LOG_ERROR(BulkIOToSDDSProcessor,"The BulkIO To SDDS Processor is already running, cannot start a new stream without first receiving an EOS!");
 			return;
 		} else {
