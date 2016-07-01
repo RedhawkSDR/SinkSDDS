@@ -10,8 +10,8 @@ PREPARE_LOGGING(BulkIOToSDDSProcessor<STREAM_TYPE>)
  * @param dataSddsOut The parent class' SDDS output port used to push SRI and call attach / detach.
  */
 template <class STREAM_TYPE>
-BulkIOToSDDSProcessor<STREAM_TYPE>::BulkIOToSDDSProcessor(Resource_impl *parent, bulkio::OutSDDSPort * dataSddsOut):
-m_parent(parent), m_sdds_out_port(dataSddsOut), m_first_run(true), m_processorThread(NULL), m_shutdown(false), m_running(false), m_active_stream(false),  m_vlan(0), m_seq(0) {
+BulkIOToSDDSProcessor<STREAM_TYPE>::BulkIOToSDDSProcessor(bulkio::OutSDDSPort * dataSddsOut, StreamsDoneCallBackInterface * parent):
+m_sdds_out_port(dataSddsOut), m_first_run(true), m_processorThread(NULL), m_shutdown(false), m_running(false), m_active_stream(false),  m_vlan(0), m_seq(0), m_parent(parent) {
 
 	m_pkt_template.msg_name = NULL;
 	m_pkt_template.msg_namelen = 0;
@@ -93,10 +93,11 @@ template <class STREAM_TYPE>
 void BulkIOToSDDSProcessor<STREAM_TYPE>::run() {
 	LOG_TRACE(BulkIOToSDDSProcessor,"Entering the Run Method");
 	if (m_processorThread) {
-		if (m_running && not m_stream.eos()) {
+		if (m_running) {
 			LOG_ERROR(BulkIOToSDDSProcessor,"The BulkIO To SDDS Processor is already running, cannot start a new stream without first receiving an EOS!");
 			return;
 		} else {
+			LOG_TRACE(BulkIOToSDDSProcessor,"Told to run but there is already a running instance, calling join.");
 			join();
 		}
 	}
@@ -244,8 +245,6 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setStream(STREAM_TYPE stream) {
 	if (not m_sdds_header_override.enabled) {
 		m_sdds_template.bps = (sizeof(NATIVE_TYPE) == sizeof(float)) ? (31) : 8*sizeof(NATIVE_TYPE);
 	}
-
-	if (m_parent->started()) { run(); }
 }
 
 /**
@@ -319,6 +318,7 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 	m_first_run = true;
 	m_shutdown = false;
 	m_running = false;
+	boost::thread(boost::bind(&StreamsDoneCallBackInterface::streamsDone, this->m_parent, m_stream.streamID()));
 	LOG_TRACE(BulkIOToSDDSProcessor,"Exiting the _run Method");
 }
 

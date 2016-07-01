@@ -7,8 +7,12 @@
 #include "socketUtils/multicast.h"
 #include "socketUtils/unicast.h"
 #include "BulkIOToSDDSProcessor.h"
+#include "StreamsDoneCallBackInterface.h"
+#include <vector>
 
-class SinkSDDS_i : public SinkSDDS_base
+
+
+class SinkSDDS_i : public SinkSDDS_base, public StreamsDoneCallBackInterface
 {
     ENABLE_LOGGING
     public:
@@ -27,11 +31,20 @@ class SinkSDDS_i : public SinkSDDS_base
         void setOctetStream(bulkio::InOctetStream octetStream);
         void newConnectionMade(const char* connectionId);
 
+        void streamsDone(std::string streamId);
+
+        std::vector<bulkio::InFloatStream> m_floatStreamOnDeck;
+        std::vector<bulkio::InShortStream> m_shortStreamOnDeck;
+        std::vector<bulkio::InOctetStream> m_octetStreamOnDeck;
+
     private:
         int setupSocket();
-        size_t getNumberOfActiveStreams();
+        bool streamIsOnDeck();
+        bool streamIsActive();
+
+        void dropOnDeckStream();
         connection_t m_connection;
-        boost::mutex m_new_stream_lock;
+        boost::mutex m_stream_lock;
 
         BulkIOToSDDSProcessor<bulkio::InShortStream> m_shortproc;
         BulkIOToSDDSProcessor<bulkio::InFloatStream> m_floatproc;

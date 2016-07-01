@@ -9,6 +9,7 @@ redhawk_SOURCES_auto += SinkSDDS.cpp
 redhawk_SOURCES_auto += SinkSDDS.h
 redhawk_SOURCES_auto += SinkSDDS_base.cpp
 redhawk_SOURCES_auto += SinkSDDS_base.h
+redhawk_SOURCES_auto += StreamsDoneCallBackInterface.h
 redhawk_SOURCES_auto += main.cpp
 redhawk_SOURCES_auto += sddspacket.h
 redhawk_SOURCES_auto += socketUtils/SourceNicUtils.cpp

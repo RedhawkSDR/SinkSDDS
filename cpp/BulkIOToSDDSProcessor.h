@@ -10,6 +10,7 @@
 #include "socketUtils/multicast.h"
 #include "socketUtils/unicast.h"
 #include "struct_props.h"
+#include "StreamsDoneCallBackInterface.h"
 
 #define SDDS_DATA_SIZE 1024
 #define SDDS_HEADER_SIZE 56
@@ -26,7 +27,7 @@ class BulkIOToSDDSProcessor {
 	typedef typename STREAM_TYPE::NativeType NATIVE_TYPE;
 
 public:
-	BulkIOToSDDSProcessor(Resource_impl *parent, bulkio::OutSDDSPort * dataSddsOut);
+	BulkIOToSDDSProcessor(bulkio::OutSDDSPort * dataSddsOut, StreamsDoneCallBackInterface * parent);
 	~BulkIOToSDDSProcessor();
 	bool isActive();
 	void join();
@@ -54,7 +55,6 @@ private:
 	time_t getStartOfYear();
 	void overrideSddsHeader();
 
-	Resource_impl *m_parent;
 	bulkio::OutSDDSPort *m_sdds_out_port;
 	bool m_first_run;
 	boost::thread *m_processorThread;
@@ -73,6 +73,7 @@ private:
 	uint16_t m_seq;
 	override_sdds_header_struct m_sdds_header_override;
 	sdds_attach_settings_struct m_attach_settings;
+	StreamsDoneCallBackInterface * m_parent;
 
 	template <typename CORBAXX>
 		bool addModifyKeyword(BULKIO::StreamSRI *sri, CORBA::String_member id, CORBAXX myValue, bool addOnly = false) {
