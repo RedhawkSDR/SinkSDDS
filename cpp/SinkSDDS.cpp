@@ -19,9 +19,10 @@ PREPARE_LOGGING(SinkSDDS_i)
  */
 SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
     SinkSDDS_base(uuid, label),
-	m_shortproc(this, dataSddsOut),
-	m_floatproc(this, dataSddsOut),
-	m_octetproc(this, dataSddsOut)
+	StreamsDoneCallBackInterface(),
+	m_shortproc(dataSddsOut, this),
+	m_floatproc(dataSddsOut, this),
+	m_octetproc(dataSddsOut, this)
 {
 	dataFloatIn->addStreamListener(this, &SinkSDDS_i::setFloatStream);
 	dataFloatIn->removeStreamListener(&m_floatproc, &BulkIOToSDDSProcessor<bulkio::InFloatStream>::removeStream);
@@ -35,6 +36,7 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 	setPropertyConfigureImpl(sdds_settings, this, &SinkSDDS_i::set_sdds_settings_struct);
 	setPropertyConfigureImpl(network_settings, this, &SinkSDDS_i::set_network_settings_struct);
 	setPropertyConfigureImpl(override_sdds_header, this, &SinkSDDS_i::set_override_sdds_header_struct);
+	setPropertyQueryImpl(status, this, &SinkSDDS_i::get_status_struct);
 
 	dataSddsOut->setNewConnectListener(this, &SinkSDDS_i::newConnectionMade);
 
@@ -73,15 +75,53 @@ void SinkSDDS_i::newConnectionMade(const char *connectionId) {
 }
 
 /**
+ * Used as a callback for any of the stream processors. Used only to kick off any stream in the on deck pile
+ */
+void SinkSDDS_i::streamsDone(std::string streamId) {
+	boost::unique_lock<boost::mutex> lock(m_stream_lock);
+	LOG_INFO(SinkSDDS_i, "Completed processing: " << streamId);
+	if (m_floatStreamOnDeck.size()) {
+		bulkio::InFloatStream newFloatStream = m_floatStreamOnDeck.back();
+		newFloatStream.enable();
+		m_floatproc.setStream(newFloatStream);
+		m_floatStreamOnDeck.clear();
+		if (started()) { m_floatproc.run(); }
+	} else if (m_shortStreamOnDeck.size()) {
+		bulkio::InShortStream newShortStream = m_shortStreamOnDeck.back();
+		newShortStream.enable();
+		m_shortproc.setStream(newShortStream);
+		m_shortStreamOnDeck.clear();
+		if (started()) { m_shortproc.run(); }
+	} else if (m_octetStreamOnDeck.size()) {
+		bulkio::InOctetStream newOctetStream = m_octetStreamOnDeck.back();
+		newOctetStream.enable();
+		m_octetproc.setStream(newOctetStream);
+		m_octetStreamOnDeck.clear();
+		if (started()) { m_octetproc.run(); }
+	}
+}
+
+/**
  * Call back for a new stream coming into the float port. When a new stream
  * arrives, it is only accepted if no other stream processor is active as this
  * component only handles a single stream -> SDDS stream at a time.
  */
 void SinkSDDS_i::setFloatStream(bulkio::InFloatStream floatStream) {
-	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
-		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << floatStream.streamID() << " there is already an active stream");
+	boost::unique_lock<boost::mutex> lock(m_stream_lock);
+
+	if (streamIsActive()) {
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream and adding it to an on deck list: " << floatStream.streamID());
+		floatStream.disable();
+		if (streamIsOnDeck()) {
+			LOG_WARN(SinkSDDS_i, "There is already a stream on deck, the new stream will take precedence.");
+			dropOnDeckStream();
+		}
+
+		m_floatStreamOnDeck.push_back(floatStream);
 	} else {
+		LOG_DEBUG(SinkSDDS_i, "Passing new float stream to proc: " << floatStream.streamID());
 		m_floatproc.setStream(floatStream);
+		if (started()) { m_floatproc.run();}
 	}
 }
 
@@ -91,10 +131,21 @@ void SinkSDDS_i::setFloatStream(bulkio::InFloatStream floatStream) {
  * component only handles a single stream -> SDDS stream at a time.
  */
 void SinkSDDS_i::setShortStream(bulkio::InShortStream shortStream) {
-	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
-		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << shortStream.streamID() << " there is already an active stream");
+	boost::unique_lock<boost::mutex> lock(m_stream_lock);
+
+	if (streamIsActive()) {
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream and adding it to an on deck list: " << shortStream.streamID());
+		shortStream.disable();
+		if (streamIsOnDeck()) {
+			LOG_WARN(SinkSDDS_i, "There is already a stream on deck, the new stream will take precedence.");
+			dropOnDeckStream();
+		}
+
+		m_shortStreamOnDeck.push_back(shortStream);
 	} else {
+		LOG_DEBUG(SinkSDDS_i, "Passing new short stream to proc: " << shortStream.streamID());
 		m_shortproc.setStream(shortStream);
+		if (started()) { m_shortproc.run();}
 	}
 }
 
@@ -104,13 +155,57 @@ void SinkSDDS_i::setShortStream(bulkio::InShortStream shortStream) {
  * component only handles a single stream -> SDDS stream at a time.
  */
 void SinkSDDS_i::setOctetStream(bulkio::InOctetStream octetStream) {
-	if (m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive()) {
-		LOG_WARN(SinkSDDS_i, "Cannot create new stream " << octetStream.streamID() << " there is already an active stream");
+	boost::unique_lock<boost::mutex> lock(m_stream_lock);
+
+	if (streamIsActive()) {
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream and adding it to an on deck list: " << octetStream.streamID());
+		octetStream.disable();
+		if (streamIsOnDeck()) {
+			LOG_WARN(SinkSDDS_i, "There is already a stream on deck, the new stream will take precedence.");
+			dropOnDeckStream();
+		}
+
+		m_octetStreamOnDeck.push_back(octetStream);
 	} else {
+		LOG_DEBUG(SinkSDDS_i, "Passing new octet stream to proc: " << octetStream.streamID());
 		m_octetproc.setStream(octetStream);
+		if (started()) { m_octetproc.run();}
 	}
 }
 
+/**
+ * True if there is a stream currently "on deck"
+ */
+bool SinkSDDS_i::streamIsOnDeck() {
+	return m_floatStreamOnDeck.size() > 0 || m_shortStreamOnDeck.size() > 0 || m_octetStreamOnDeck.size() > 0;
+}
+
+
+/**
+ * True if there is a stream is currently active
+ */
+bool SinkSDDS_i::streamIsActive() {
+	return m_floatproc.isActive() || m_shortproc.isActive() || m_octetproc.isActive();
+}
+
+
+/**
+ * Drops the stream on deck and logs it.
+ */
+void SinkSDDS_i::dropOnDeckStream() {
+	if (m_floatStreamOnDeck.size()) {
+		LOG_WARN(SinkSDDS_i, "Dropping float stream: " << m_floatStreamOnDeck[0].streamID());
+		m_floatStreamOnDeck.clear();
+	}
+	if (m_shortStreamOnDeck.size()) {
+		LOG_WARN(SinkSDDS_i, "Dropping short stream: " << m_shortStreamOnDeck[0].streamID());
+		m_shortStreamOnDeck.clear();
+	}
+	if (m_octetStreamOnDeck.size()) {
+		LOG_WARN(SinkSDDS_i, "Dropping octet stream: " << m_octetStreamOnDeck[0].streamID());
+		m_octetStreamOnDeck.clear();
+	}
+}
 /**
  * Setter method called by the framework in place of the classic configure call. Will set the
  * override sdds struct property only if the component has not already started. If you need
@@ -158,6 +253,35 @@ void SinkSDDS_i::set_network_settings_struct(struct network_settings_struct requ
  */
 void SinkSDDS_i::constructor(){}
 
+
+/**
+ * Gets the status struct which contains the current and on deck stream IDs.
+ */
+struct status_struct SinkSDDS_i::get_status_struct() {
+	boost::unique_lock<boost::mutex> lock(m_stream_lock);
+
+	struct status_struct retVal;
+	retVal.current_stream = "";
+	retVal.stream_on_deck = "";
+
+	if (m_floatproc.isActive()) {
+		retVal.current_stream = m_floatproc.getStreamId();
+	} else if (m_shortproc.isActive()) {
+		retVal.current_stream = m_shortproc.getStreamId();
+	} else if (m_octetproc.isActive()) {
+		retVal.current_stream = m_octetproc.getStreamId();
+	}
+
+	if (m_floatStreamOnDeck.size()) {
+		retVal.stream_on_deck = m_floatStreamOnDeck.back().streamID();
+	} else if (m_shortStreamOnDeck.size()) {
+		retVal.stream_on_deck = m_shortStreamOnDeck.back().streamID();
+	} else if (m_octetStreamOnDeck.size()) {
+		retVal.stream_on_deck = m_octetStreamOnDeck.back().streamID();
+	}
+
+	return retVal;
+}
 /**
  * During start, the socket is opened and the three bulkIO processors are initialized.
  * If there is an issue establishing the socket, an exception is raised and the bulkIO

@@ -10,8 +10,8 @@ PREPARE_LOGGING(BulkIOToSDDSProcessor<STREAM_TYPE>)
  * @param dataSddsOut The parent class' SDDS output port used to push SRI and call attach / detach.
  */
 template <class STREAM_TYPE>
-BulkIOToSDDSProcessor<STREAM_TYPE>::BulkIOToSDDSProcessor(Resource_impl *parent, bulkio::OutSDDSPort * dataSddsOut):
-m_parent(parent), m_sdds_out_port(dataSddsOut), m_first_run(true), m_processorThread(NULL), m_shutdown(false), m_running(false), m_active_stream(false),  m_vlan(0), m_seq(0) {
+BulkIOToSDDSProcessor<STREAM_TYPE>::BulkIOToSDDSProcessor(bulkio::OutSDDSPort * dataSddsOut, StreamsDoneCallBackInterface * parent):
+m_sdds_out_port(dataSddsOut), m_first_run(true), m_processorThread(NULL), m_shutdown(false), m_running(false), m_active_stream(false),  m_vlan(0), m_seq(0), m_parent(parent) {
 
 	m_pkt_template.msg_name = NULL;
 	m_pkt_template.msg_namelen = 0;
@@ -97,6 +97,7 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::run() {
 			LOG_ERROR(BulkIOToSDDSProcessor,"The BulkIO To SDDS Processor is already running, cannot start a new stream without first receiving an EOS!");
 			return;
 		} else {
+			LOG_TRACE(BulkIOToSDDSProcessor,"Told to run but there is already a running instance, calling join.");
 			join();
 		}
 	}
@@ -140,8 +141,12 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::callDetach() {
 	// There are multiple places were detach can be called during the shutdown process so just return if we've already cleared out the stream.
 	if (m_active_stream) {
 		LOG_TRACE(BulkIOToSDDSProcessor, "Calling detach on current stream: " << m_stream.streamID());
-		m_sdds_out_port->detach(CORBA::string_dup(m_stream.streamID().c_str()));
-		m_active_stream = false;
+		m_active_stream = false; // Set this before the detach call in case it throws an exception
+		try {
+			m_sdds_out_port->detach(CORBA::string_dup(m_stream.streamID().c_str()));
+		} catch (...) {
+			LOG_ERROR(BulkIOToSDDSProcessor, "Error occurred while calling detach");
+		}
 	} else {
 		LOG_TRACE(BulkIOToSDDSProcessor, "Was told to call detach but also told there is no active stream!");
 	}
@@ -240,8 +245,6 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::setStream(STREAM_TYPE stream) {
 	if (not m_sdds_header_override.enabled) {
 		m_sdds_template.bps = (sizeof(NATIVE_TYPE) == sizeof(float)) ? (31) : 8*sizeof(NATIVE_TYPE);
 	}
-
-	if (m_parent->started()) { run(); }
 }
 
 /**
@@ -284,7 +287,12 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 			pushSri();
 			setSddsHeaderFromSri();
 		}
+
+		// It could be that we were stopped, it could also be we got an empty packet with an EOS.
 		if (not bytes_read) {
+			if (m_stream.eos()) {
+				callDetach();
+			}
 			shutdown();
 			continue;
 		}
@@ -299,14 +307,18 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::_run() {
 			m_first_run = false;
 		}
 
+		// This is for the case where we received a full packet but it came with an EOS flag attached.
 		if (m_stream.eos()) {
 			callDetach();
+			shutdown();
+			continue;
 		}
 	}
 
 	m_first_run = true;
 	m_shutdown = false;
 	m_running = false;
+	boost::thread(boost::bind(&StreamsDoneCallBackInterface::streamsDone, this->m_parent, m_stream.streamID()));
 	LOG_TRACE(BulkIOToSDDSProcessor,"Exiting the _run Method");
 }
 
@@ -542,6 +554,14 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::pushSri(BULKIO::dataSDDS::_ptr_type sdd
 	} else {
 		sdds_input_port->pushSRI(m_sri, m_current_time);
 	}
+}
+
+/**
+ * Returns the current streams stream ID.
+ */
+template <class STREAM_TYPE>
+std::string BulkIOToSDDSProcessor<STREAM_TYPE>::getStreamId() {
+	return m_stream.streamID();
 }
 
 /**

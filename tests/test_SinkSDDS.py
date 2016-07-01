@@ -99,6 +99,52 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 #             recv = self.getPacket(10000)
 #             h = self.getHeader(recv)
 #             self.assertTrue(h.SoS == 0, "SoS bit should not be set")
+
+    def testEosPushWhileStopped(self):
+        self.octetConnect()
+        
+        short_source = sb.DataSource()
+        short_source.connect(self.comp, usesPortName='shortOut')
+        
+        sb.start()
+        
+        goodData1 = 1024*[1];
+        goodData2 = 1024*[3];
+
+        self.source.push(goodData1, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData1, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        
+        self.comp.stop()
+        
+        # Push an empty packet with EOS
+        self.source.push([], EOS=True, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        
+        self.comp.start()
+        
+        # Push a new stream with new stream ID
+        self.source.push(goodData2, EOS=False, streamID="New Stream", sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData2, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        
+    def testEosPush(self):
+        self.octetConnect()
+        
+        short_source = sb.DataSource()
+        short_source.connect(self.comp, usesPortName='shortOut')
+        
+        sb.start()
+        
+        goodData1 = 1024*[1];
+        goodData2 = 1024*[3];
+
+        self.source.push(goodData1, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData1, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        
+        # Push an empty packet with EOS
+        self.source.push([], EOS=True, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
+        
+        # Push a new stream with new stream ID
+        self.source.push(goodData2, EOS=False, streamID="New Stream", sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(goodData2, list(struct.unpack('1024B', self.getPacket()[-1024:])))
         
     def testEmptyInterfaceOctet(self):
         self.comp.network_settings.interface = ''
@@ -406,43 +452,43 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         sb.start()
         
         goodData1 = 1024*[1];
-        badData = 512*[2];
+        deckedData = 512*[2];
         goodData2 = 512*[3];
 
         # No data pushed, no attaches or detaches        
         self.assertEqual(len(ad_cb.get_attach()), 0, "Should not have received any attaches")
-#         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
         
         # Push one good packet and confirm it was received
         self.source.push(goodData1, EOS=False, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
         self.assertEqual(goodData1, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        
         # Since we pushed, we should get an attach, no detach
         self.assertEqual(len(ad_cb.get_attach()), 1, "Should have received 1 attach total")
-#         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
         
-        # Push a new stream, it should get ignored, confirm we receive no data and still have only a single attach
-        short_source.push(badData, EOS=False, streamID="Bad Stream", sampleRate=1.0, complexData=False, loop=False)
+        # Push a new stream, it should get decked, and disabled, confirm we receive no data and still have only a single attach
+        short_source.push(deckedData, EOS=False, streamID="Decked Stream", sampleRate=1.0, complexData=False, loop=False)
         self.assertEqual(len(self.getPacket()), 0, "Should not have passed on new stream, stream already active")
         self.assertEqual(len(ad_cb.get_attach()), 1, "Should have received 1 attach total")
-#         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
 
-        # Push an EOS which should cause a detach        
+        # Push an EOS which should cause a detach, the decked stream to become active and the goodData pushed and us to have another attach called.
         self.source.push(goodData1, EOS=True, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
         self.assertEqual(goodData1, list(struct.unpack('1024B', self.getPacket()[-1024:])))
         time.sleep(2)
-        self.assertEqual(len(ad_cb.get_attach()), 1, "Should have received 1 attach total")
-#         self.assertEqual(len(ad_cb.get_detach()), 1, "Should have received 1 detach total")
+        self.assertEqual(len(ad_cb.get_attach()), 2, "Should have received 2 attach total")
+        
+        # Push decked data and EOS It.
+        short_source.push(deckedData, EOS=True, streamID="Decked Stream", sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(deckedData, list(struct.unpack('!512H', self.getPacket()[-1024:])))
 
         # Send a new stream, which means a new attach                
         short_source.push(goodData2, EOS=False, streamID="New Stream", sampleRate=1.0, complexData=False, loop=False)
         self.assertEqual(goodData2, list(struct.unpack('!512H', self.getPacket()[-1024:])))
-        self.assertEqual(len(ad_cb.get_attach()), 2, "Should have received 2 attach total")
-#         self.assertEqual(len(ad_cb.get_detach()), 1, "Should have received 1 detach total")
+        self.assertEqual(len(ad_cb.get_attach()), 3, "Should have received 3 attach total")
         
         # Tear stuff down, confirm we get the final detach
         sb.release()
-        self.assertEqual(len(ad_cb.get_attach()), 2, "Should have received 2 attach total")
-        self.assertEqual(len(ad_cb.get_detach()), 2, "Should have received 2 detach total")
+        self.assertEqual(len(ad_cb.get_attach()), 3, "Should have received 3 attach total")
+        self.assertEqual(len(ad_cb.get_detach()), 3, "Should have received 3 detach total")
 
 # TODO: The attach detach test do not pass, is it a bug with me or them?
     def testMultipleStreamsSamePort(self):
@@ -455,7 +501,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         sb.start()
         
         goodData1 = 1024*[1];
-        badData = 1024*[2];
+        deckedStream = 1024*[2];
         goodData2 = 1024*[3];
 
         # No data pushed, no attaches or detaches        
@@ -470,7 +516,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
 #         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
         
         # Push a new stream, it should get ignored, confirm we receive no data and still have only a single attach
-        self.source.push(badData, EOS=False, streamID="Bad Stream", sampleRate=1.0, complexData=False, loop=False)
+        self.source.push(deckedStream, EOS=False, streamID="Decked Stream", sampleRate=1.0, complexData=False, loop=False)
         self.assertEqual(len(self.getPacket()), 0, "Should not have passed on new stream, stream already active")
         self.assertEqual(len(ad_cb.get_attach()), 1, "Should have received 1 attach total")
 #         self.assertEqual(len(ad_cb.get_detach()), 0, "Should not have received any detaches")
@@ -478,13 +524,15 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         # Push an EOS which should cause a detach        
         self.source.push(goodData1, EOS=True, streamID=self.id(), sampleRate=1.0, complexData=False, loop=False)
         self.assertEqual(goodData1, list(struct.unpack('1024B', self.getPacket()[-1024:])))
-        time.sleep(2)
-        self.assertEqual(len(ad_cb.get_attach()), 1, "Should have received 1 attach total")
+        time.sleep(1)
+        self.source.push(deckedStream, EOS=False, streamID="Decked Stream", sampleRate=1.0, complexData=False, loop=False)
+        time.sleep(1)
+        self.assertEqual(len(ad_cb.get_attach()), 2, "Should have received 2 attach total")
 #         self.assertEqual(len(ad_cb.get_detach()), 1, "Should have received 1 detach total")
 
         # Send a new stream, which means a new attach                
-        self.source.push(goodData2, EOS=False, streamID="New Stream", sampleRate=1.0, complexData=False, loop=False)
-        self.assertEqual(goodData2, list(struct.unpack('1024B', self.getPacket()[-1024:])))
+        self.source.push(goodData2, EOS=False, streamID="Another on the deck stream", sampleRate=1.0, complexData=False, loop=False)
+        self.assertEqual(deckedStream, list(struct.unpack('1024B', self.getPacket()[-1024:])))
         self.assertEqual(len(ad_cb.get_attach()), 2, "Should have received 2 attach total")
 #         self.assertEqual(len(ad_cb.get_detach()), 1, "Should have received 1 detach total")
         
@@ -665,7 +713,7 @@ class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
         # Get data
         received_data = []
         try:
-             received_data = self.uclient.receive(socket_read_size, timeout = 2)
+             received_data = self.uclient.receive(socket_read_size, timeout = 5)
         except socket.error as e:
             print "Socket read error: ", e
         
