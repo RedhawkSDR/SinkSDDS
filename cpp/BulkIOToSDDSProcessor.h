@@ -44,6 +44,7 @@ public:
 	void shutdown();
 	void setStream(STREAM_TYPE stream);
 	void removeStream(STREAM_TYPE stream);
+	std::string getStreamId();
 
 private:
 	void _run();

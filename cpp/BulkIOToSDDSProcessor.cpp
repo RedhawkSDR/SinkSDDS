@@ -557,6 +557,14 @@ void BulkIOToSDDSProcessor<STREAM_TYPE>::pushSri(BULKIO::dataSDDS::_ptr_type sdd
 }
 
 /**
+ * Returns the current streams stream ID.
+ */
+template <class STREAM_TYPE>
+std::string BulkIOToSDDSProcessor<STREAM_TYPE>::getStreamId() {
+	return m_stream.streamID();
+}
+
+/**
  * Since this is a templated class with a cpp and headerfile, the cpp
  * file must declare all the template types to generate. In this case it is
  * simply octet, float, and short port types.

@@ -128,4 +128,15 @@
     </simple>
     <configurationkind kindtype="property"/>
   </struct>
+  <struct id="status" mode="readonly" name="status">
+    <simple id="status::current_stream" name="current_stream" type="string">
+      <description>The current stream being processed by the stream processor. </description>
+      <value></value>
+    </simple>
+    <simple id="status::stream_on_deck" name="stream_on_deck" type="string">
+      <description>If there is a stream being processed any new stream started will be put &quot;on deck&quot; until it can become active. Only a single stream can be on deck at any time and old streams are dropped when new streams arrive.</description>
+      <value></value>
+    </simple>
+    <configurationkind kindtype="property"/>
+  </struct>
 </properties>

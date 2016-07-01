@@ -106,6 +106,15 @@ void SinkSDDS_base::loadProperties()
                 "external",
                 "property");
 
+    addProperty(status,
+                status_struct(),
+                "status",
+                "status",
+                "readonly",
+                "",
+                "external",
+                "property");
+
 }
 
 

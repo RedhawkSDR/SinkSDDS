@@ -25,6 +25,7 @@ class SinkSDDS_i : public SinkSDDS_base, public StreamsDoneCallBackInterface
         void set_sdds_settings_struct(struct sdds_settings_struct request);
         void set_network_settings_struct(struct network_settings_struct request);
         void set_override_sdds_header_struct(struct override_sdds_header_struct request);
+        struct status_struct get_status_struct();
 
         void setFloatStream(bulkio::InFloatStream floatStream);
         void setShortStream(bulkio::InShortStream shortStream);

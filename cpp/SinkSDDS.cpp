@@ -36,6 +36,7 @@ SinkSDDS_i::SinkSDDS_i(const char *uuid, const char *label) :
 	setPropertyConfigureImpl(sdds_settings, this, &SinkSDDS_i::set_sdds_settings_struct);
 	setPropertyConfigureImpl(network_settings, this, &SinkSDDS_i::set_network_settings_struct);
 	setPropertyConfigureImpl(override_sdds_header, this, &SinkSDDS_i::set_override_sdds_header_struct);
+	setPropertyQueryImpl(status, this, &SinkSDDS_i::get_status_struct);
 
 	dataSddsOut->setNewConnectListener(this, &SinkSDDS_i::newConnectionMade);
 
@@ -109,7 +110,7 @@ void SinkSDDS_i::setFloatStream(bulkio::InFloatStream floatStream) {
 	boost::unique_lock<boost::mutex> lock(m_stream_lock);
 
 	if (streamIsActive()) {
-		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream and adding it to an on deck list.");
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream and adding it to an on deck list: " << floatStream.streamID());
 		floatStream.disable();
 		if (streamIsOnDeck()) {
 			LOG_WARN(SinkSDDS_i, "There is already a stream on deck, the new stream will take precedence.");
@@ -133,7 +134,7 @@ void SinkSDDS_i::setShortStream(bulkio::InShortStream shortStream) {
 	boost::unique_lock<boost::mutex> lock(m_stream_lock);
 
 	if (streamIsActive()) {
-		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream and adding it to an on deck list.");
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream and adding it to an on deck list: " << shortStream.streamID());
 		shortStream.disable();
 		if (streamIsOnDeck()) {
 			LOG_WARN(SinkSDDS_i, "There is already a stream on deck, the new stream will take precedence.");
@@ -157,7 +158,7 @@ void SinkSDDS_i::setOctetStream(bulkio::InOctetStream octetStream) {
 	boost::unique_lock<boost::mutex> lock(m_stream_lock);
 
 	if (streamIsActive()) {
-		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream and adding it to an on deck list.");
+		LOG_WARN(SinkSDDS_i, "Cannot create new stream there is already an active stream. Disabling stream and adding it to an on deck list: " << octetStream.streamID());
 		octetStream.disable();
 		if (streamIsOnDeck()) {
 			LOG_WARN(SinkSDDS_i, "There is already a stream on deck, the new stream will take precedence.");
@@ -252,6 +253,35 @@ void SinkSDDS_i::set_network_settings_struct(struct network_settings_struct requ
  */
 void SinkSDDS_i::constructor(){}
 
+
+/**
+ * Gets the status struct which contains the current and on deck stream IDs.
+ */
+struct status_struct SinkSDDS_i::get_status_struct() {
+	boost::unique_lock<boost::mutex> lock(m_stream_lock);
+
+	struct status_struct retVal;
+	retVal.current_stream = "";
+	retVal.stream_on_deck = "";
+
+	if (m_floatproc.isActive()) {
+		retVal.current_stream = m_floatproc.getStreamId();
+	} else if (m_shortproc.isActive()) {
+		retVal.current_stream = m_shortproc.getStreamId();
+	} else if (m_octetproc.isActive()) {
+		retVal.current_stream = m_octetproc.getStreamId();
+	}
+
+	if (m_floatStreamOnDeck.size()) {
+		retVal.stream_on_deck = m_floatStreamOnDeck.back().streamID();
+	} else if (m_shortStreamOnDeck.size()) {
+		retVal.stream_on_deck = m_shortStreamOnDeck.back().streamID();
+	} else if (m_octetStreamOnDeck.size()) {
+		retVal.stream_on_deck = m_octetStreamOnDeck.back().streamID();
+	}
+
+	return retVal;
+}
 /**
  * During start, the socket is opened and the three bulkIO processors are initialized.
  * If there is an issue establishing the socket, an exception is raised and the bulkIO

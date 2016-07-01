@@ -333,4 +333,53 @@ inline bool operator!= (const override_sdds_header_struct& s1, const override_sd
     return !(s1==s2);
 }
 
+struct status_struct {
+    status_struct ()
+    {
+        current_stream = "";
+        stream_on_deck = "";
+    };
+
+    static std::string getId() {
+        return std::string("status");
+    };
+
+    std::string current_stream;
+    std::string stream_on_deck;
+};
+
+inline bool operator>>= (const CORBA::Any& a, status_struct& s) {
+    CF::Properties* temp;
+    if (!(a >>= temp)) return false;
+    const redhawk::PropertyMap& props = redhawk::PropertyMap::cast(*temp);
+    if (props.contains("status::current_stream")) {
+        if (!(props["status::current_stream"] >>= s.current_stream)) return false;
+    }
+    if (props.contains("status::stream_on_deck")) {
+        if (!(props["status::stream_on_deck"] >>= s.stream_on_deck)) return false;
+    }
+    return true;
+}
+
+inline void operator<<= (CORBA::Any& a, const status_struct& s) {
+    redhawk::PropertyMap props;
+ 
+    props["status::current_stream"] = s.current_stream;
+ 
+    props["status::stream_on_deck"] = s.stream_on_deck;
+    a <<= props;
+}
+
+inline bool operator== (const status_struct& s1, const status_struct& s2) {
+    if (s1.current_stream!=s2.current_stream)
+        return false;
+    if (s1.stream_on_deck!=s2.stream_on_deck)
+        return false;
+    return true;
+}
+
+inline bool operator!= (const status_struct& s1, const status_struct& s2) {
+    return !(s1==s2);
+}
+
 #endif // STRUCTPROPS_H
