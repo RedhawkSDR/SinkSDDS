@@ -2,7 +2,7 @@
  * StreamsDoneCallBackInterface.h
  *
  *  Created on: Jul 1, 2016
- *      Author: ylbagou
+ *      Author: 
  */
 
 #ifndef STREAMSDONECALLBACKINTERFACE_H_
