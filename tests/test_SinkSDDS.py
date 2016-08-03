@@ -23,6 +23,7 @@ FLOAT_BPS = [16, 8, 4, 2, 1]
 SHORT_BPS = [16,  0, 0, 0, 0]
 OCTET_BPS = [0,  8, 0, 0, 0]
 
+sb.release = getattr(sb,'release',sb.domainless._cleanUpLaunchedComponents)
 
 def timedelta_total_seconds(timedelta):
     return (
@@ -66,8 +67,6 @@ class SddsAttachDetachCB():
         return self.detaches
         
 
-# TODO: I changed the inheritance from RHTest to ScaComponentTestCase, put back after figuring out how to deal with
-# the new type
 class ComponentTests(ossie.utils.testing.ScaComponentTestCase):
     # Path to the SPD file, relative to this file. This must be set in order to
     # launch the component.
