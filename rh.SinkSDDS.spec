@@ -30,7 +30,7 @@ Prefix:         %{_prefix}
 %define _infodir       %{_prefix}/info
 
 Name:           rh.SinkSDDS
-Version:        1.0.0
+Version:        1.0.1
 Release:        1%{?dist}
 Summary:        Component %{name}
 
