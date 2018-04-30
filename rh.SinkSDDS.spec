@@ -31,7 +31,7 @@ Prefix:         %{_prefix}
 
 Name:           rh.SinkSDDS
 Version:        1.0.0
-Release:        3%{?dist}
+Release:        4%{?dist}
 Summary:        Component %{name}
 
 Group:          REDHAWK/Components
